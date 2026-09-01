@@ -84,9 +84,33 @@ log "[0/7] Preparing the signed U-Boot payload"
 if [[ -z $UBOOT_KPART ]]; then
   UBOOT_KPART="$WORK_DIR/uboot.kpart"
   log "    Downloading ${UBOOT_KPART_URL}"
-  curl -fsSL --retry 3 --retry-delay 5 -o "$UBOOT_KPART" "$UBOOT_KPART_URL"
+
+  if ! curl -fsSL --retry 3 --retry-delay 5 -o "$UBOOT_KPART" "$UBOOT_KPART_URL"; then
+    cat >&2 <<EOF
+ERROR: could not download the signed U-Boot from
+  ${UBOOT_KPART_URL}
+
+A /releases/latest/ URL only resolves once a release exists that is not a
+prerelease, so a project publishing only snapshots answers 404 here. Check
+https://github.com/emilianbold/c201p/releases, then either point
+UBOOT_KPART_URL at a specific release asset or pass a local copy as
+UBOOT_KPART=/path/to/debian-c201p-uboot.kpart.
+EOF
+    exit 1
+  fi
 fi
-[[ -s $UBOOT_KPART ]] || { echo "U-Boot kpart ${UBOOT_KPART} is missing or empty" >&2; exit 1; }
+
+[[ -s $UBOOT_KPART ]] || { echo "ERROR: U-Boot kpart ${UBOOT_KPART} is missing or empty" >&2; exit 1; }
+
+# A signed ChromeOS kernel partition opens with the "CHROMEOS" keyblock magic.
+# Without this check a stray HTML error page or a truncated download is written
+# into KERN-A, and the Chromebook reports it by not booting, with no console to
+# say why.
+if [[ $(head -c 8 "$UBOOT_KPART") != "CHROMEOS" ]]; then
+  echo "ERROR: ${UBOOT_KPART} is not a signed ChromeOS kernel partition" >&2
+  exit 1
+fi
+
 log "    U-Boot kpart: $(du -h "$UBOOT_KPART" | cut -f1)"
 
 # ── Step 1: rootfs tarball ────────────────────────────────────────────────────
