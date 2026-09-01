@@ -179,6 +179,15 @@ LABEL=${ROOT_LABEL}  /  ext4  rw,relatime  0  1
 EOF
 
 echo "$HOSTNAME" >"${MOUNT_DIR}/etc/hostname"
+
+# Resolve the machine's own name locally. Without it sudo pauses on every call
+# while it fails to resolve the host, including inside the build chroot where
+# setup leaves shell out to it.
+cat >"${MOUNT_DIR}/etc/hosts" <<EOF
+127.0.0.1   localhost
+::1         localhost
+127.0.1.1   ${HOSTNAME}
+EOF
 ln -sf "/usr/share/zoneinfo/${TIMEZONE}" "${MOUNT_DIR}/etc/localtime"
 echo "${LOCALE} UTF-8" >"${MOUNT_DIR}/etc/locale.gen"
 echo "LANG=${LOCALE}" >"${MOUNT_DIR}/etc/locale.conf"
