@@ -24,7 +24,10 @@ on:
 
 concurrency:
   group: armv7-image-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue rather than cancel: an emulated build is one to two hours of work, and
+  # throwing it away because a later push touched a comment costs more than
+  # letting the runs line up.
+  cancel-in-progress: false
 
 jobs:
   # Cheap and fast, so a typo in a leaf fails in a minute instead of after an
