@@ -21,7 +21,33 @@ what an armv7h machine cannot have.
 `install/armv7/all.sh` and none of the x86 leaves run. Nothing in the x86 path
 changes.
 
-## How much of this is Omarchy's own build
+## Why Arch Linux ARM, and which of its rootfs images
+
+Arch Linux itself is x86_64 only. There is no ARM build from archlinux.org —
+ARM is the separate Arch Linux ARM project (archlinuxarm.org), which tracks
+Arch's PKGBUILDs but is its own distribution with its own repositories, keyring
+and mirrors. So there are not two ARM Arches to choose between: for `armv7h`
+there is exactly one, and this port depends on it. That dependency is the first
+thing to raise upstream — it is what makes an ARM target structurally different
+from x86_64, where Omarchy sits on Arch proper plus its own repo.
+
+Arch Linux ARM ships two rootfs images that could serve here, and this port uses
+the generic one:
+
+- **`ArchLinuxARM-armv7-latest.tar.gz`** (used) — the generic ARMv7 rootfs,
+  which carries the mainline `linux-armv7` kernel. Mainline is what makes a
+  Wayland session possible at all on this hardware: Panfrost for the Mali T764,
+  atomic KMS, a current DRM stack.
+- **`ArchLinuxARM-veyron-latest.tar.gz`** (not used) — a board-specific image
+  for veyron Chromebooks. It is the better-trodden path for simply getting
+  *something* booting on a C201, but it is built around the vendor kernel line
+  and the Chromebook convention of signing the kernel itself into `KERN-A` and
+  re-flashing that partition on every kernel upgrade. Neither suits a desktop
+  that updates weekly through `omarchy update`, and the vendor kernel cannot
+  drive the compositor.
+
+The builder takes `ROOTFS_URL`, so the board image is one environment variable
+away if it is ever worth comparing.
 
 The image builder is a substrate, not a second installer. It does what the ISO's
 pacstrap phase does — partition, unpack a rootfs, install a kernel — and then
