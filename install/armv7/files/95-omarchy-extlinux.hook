@@ -1,0 +1,14 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = boot/zImage
+Target = boot/Image
+Target = boot/initramfs-linux*.img
+Target = boot/dtbs/*
+
+[Action]
+Description = Refreshing extlinux config for U-Boot...
+When = PostTransaction
+Exec = /usr/bin/env omarchy-refresh-extlinux

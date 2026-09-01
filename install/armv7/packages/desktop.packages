@@ -1,0 +1,59 @@
+# The Omarchy desktop surface, trimmed to what Arch Linux ARM plausibly builds
+# for armv7h. Everything here is best effort: the machine still boots and logs
+# in without any of it, and whatever pacman cannot resolve is named in
+# /var/lib/omarchy/armv7-packages.report to be built from source.
+#
+# Deliberately absent, because they come from the Omarchy repo
+# (pkgs.omarchy.org), which publishes x86_64 only: aether, cliamp, herdr,
+# omacalc, omacut, omarchy-nvim, omawrite, tensaku, tobi-try, ttfx. Also absent:
+# the x86-only ones (dotnet-runtime, moonlight-qt, gpu-screen-recorder) and the
+# heavy builds no RK3288 should attempt (libreoffice-fresh, kdenlive,
+# obs-studio). See docs/armv7.md.
+
+hyprland
+hyprland-qtutils
+uwsm
+quickshell
+qt6-wayland
+qt6-declarative
+qt6-imageformats
+xdg-desktop-portal-gtk
+xdg-desktop-portal-hyprland
+xdg-terminal-exec
+sddm
+
+foot
+nautilus
+imv
+mpv
+mpv-mpris
+
+gnome-keyring
+libsecret
+gnome-themes-extra
+yaru-icon-theme
+noto-fonts
+noto-fonts-emoji
+ttf-jetbrains-mono-nerd
+
+grim
+slurp
+wl-clipboard
+wtype
+udiskie
+
+bat
+btop
+eza
+fastfetch
+fd
+fzf
+jq
+plocate
+ripgrep
+starship
+tmux
+zoxide
+
+power-profiles-daemon
+ufw

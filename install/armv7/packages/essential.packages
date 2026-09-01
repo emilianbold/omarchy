@@ -1,0 +1,24 @@
+# Base system for an ARMv7 Omarchy target, installed from the Arch Linux ARM
+# armv7h repositories. Anything missing from here leaves the machine without
+# network, audio or a login, so it is reported loudly.
+
+alsa-utils
+avahi
+bash-completion
+brightnessctl
+git
+inetutils
+less
+man-db
+networkmanager
+nss-mdns
+pipewire
+pipewire-alsa
+pipewire-pulse
+polkit
+sudo
+unzip
+wireless-regdb
+wireplumber
+wpa_supplicant
+zram-generator
