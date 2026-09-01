@@ -14,6 +14,8 @@ commands and reusable setup leaves:
 - keep root-scoped hardware setup under `install/hardware/` and orchestrate it through `install/hardware/all.sh`.
 - keep every per-user setup leaf under `install/user/` (including `install/user/hardware/` and `install/user/first-run/`) so it is clear what must run for each user.
 - prefer helper commands for package and command checks where available.
+- ARMv7 targets run their own chain under `install/armv7/` instead of the x86_64
+  leaves; [`docs/armv7.md`](../../docs/armv7.md) covers why and what it skips.
 
 Raw `command -v`, `pacman`, and `pacman-key` are acceptable in package-helper
 contexts where direct package-manager behavior is the point of the script.
