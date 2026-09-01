@@ -27,7 +27,16 @@ cat >"$stub_bin/pacman" <<'STUB'
 #!/bin/bash
 case "$1" in
   -Q) [[ $2 == "networkmanager" ]] ;;
-  -S) [[ $* != *quickshell* ]] ;;
+  -S)
+    if [[ $* == *quickshell* ]]; then
+      echo "error: target not found: quickshell" >&2
+      exit 1
+    fi
+    if [[ $* == *hyprland* ]]; then
+      echo "error: unable to satisfy dependency 'libwlroots.so=13' required by hyprland" >&2
+      exit 1
+    fi
+    ;;
   *) exit 1 ;;
 esac
 STUB
@@ -45,17 +54,27 @@ pass "a package pacman cannot resolve does not fail setup"
 report="$TMPDIR/state/armv7-packages.report"
 [[ -f $report ]] || fail "the package report is written"
 
-grep -q "^desktop quickshell$" "$report" ||
-  fail "the report names what did not install" "$(cat "$report")"
-pass "the report names what did not install"
+grep -q "^desktop quickshell - not in the armv7h repositories$" "$report" ||
+  fail "the report says a package is not built for armv7h" "$(cat "$report")"
+pass "the report says a package is not built for armv7h"
 
-grep -qE "^(essential|desktop) (networkmanager|alsa-utils|hyprland)$" "$report" &&
+# A package Arch Linux ARM does carry, failing for its own reason, must not be
+# filed as "unavailable": the fix for it is a dependency, not a source build.
+grep -q "^desktop hyprland - unable to satisfy dependency 'libwlroots.so=13'$" "$report" ||
+  fail "the report distinguishes a missing dependency from a missing package" "$(cat "$report")"
+pass "the report distinguishes a missing dependency from a missing package"
+
+grep -qE "^(essential|desktop) (networkmanager|alsa-utils) " "$report" &&
   fail "the report leaves out what did install" "$(cat "$report")"
 pass "the report leaves out what did install"
 
-[[ $output == *"WARNING"*"quickshell"* ]] ||
-  fail "the run says out loud what is missing" "$output"
-pass "the run says out loud what is missing"
+[[ $output == *"WARNING"*"desktop package(s) did not install"* ]] ||
+  fail "the run says out loud that something is missing" "$output"
+pass "the run says out loud that something is missing"
+
+[[ $output == *"Not installed: quickshell - not in the armv7h repositories"* ]] ||
+  fail "the run names each failure with its reason" "$output"
+pass "the run names each failure with its reason"
 
 [[ $output == *"Installed alsa-utils"* ]] ||
   fail "the run reports what it installed" "$output"

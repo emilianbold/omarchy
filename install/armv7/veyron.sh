@@ -22,8 +22,9 @@ EOF
   # The C201P has no ethernet port: the BCM4354 over SDIO is the only network.
   # firmware-veyron carries the per-board NVRAM calibration that linux-firmware
   # does not, and without it the adapter is unreliable or absent.
-  if ! pacman -S --noconfirm --needed firmware-veyron >/dev/null 2>&1; then
+  if ! firmware_output=$(pacman -S --noconfirm --needed firmware-veyron 2>&1); then
     echo "WARNING: firmware-veyron did not install; Wi-Fi may not come up"
+    sed 's/^/  /' <<<"$firmware_output" | tail -n 5
   fi
 
   if ! compgen -G "/usr/lib/firmware/brcm/brcmfmac4354-sdio*" >/dev/null &&

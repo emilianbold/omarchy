@@ -15,10 +15,37 @@ LIST_DIR="${OMARCHY_ARMV7_PACKAGE_DIR:-$OMARCHY_INSTALL/armv7/packages}"
 missing_essential=()
 missing_desktop=()
 
+# Why a package did not install decides what to do about it: build it from
+# source, chase the dependency that is really missing, or just retry. Reporting
+# every failure as "unavailable" hides that difference -- and hides the case
+# where a package Arch Linux ARM does carry failed for an unrelated reason.
+package_failure_reason() {
+  local output="$1" detail
+
+  if grep -q 'target not found' <<<"$output"; then
+    printf 'not in the armv7h repositories'
+    return
+  fi
+
+  if grep -q 'unable to satisfy dependency\|could not satisfy dependencies' <<<"$output"; then
+    detail=$(grep -m1 -o "unable to satisfy dependency '[^']*'" <<<"$output" || true)
+    printf '%s' "${detail:-a dependency is unavailable}"
+    return
+  fi
+
+  if grep -q 'failed retrieving file\|failed to commit transaction' <<<"$output"; then
+    printf 'download failed'
+    return
+  fi
+
+  detail=$(grep -m1 '^error:' <<<"$output" | sed 's/^error: //' || true)
+  printf '%s' "${detail:-pacman failed with no error line}"
+}
+
 install_list() {
   local list="$1"
   local -n missing_ref="$2"
-  local pkg
+  local pkg output reason
 
   [[ -f $list ]] || return 0
 
@@ -29,11 +56,12 @@ install_list() {
 
     pacman -Q "$pkg" &>/dev/null && continue
 
-    if pacman -S --noconfirm --needed "$pkg" >/dev/null 2>&1; then
+    if output=$(pacman -S --noconfirm --needed "$pkg" 2>&1); then
       echo "Installed $pkg"
     else
-      echo "Unavailable for armv7h: $pkg"
-      missing_ref+=("$pkg")
+      reason=$(package_failure_reason "$output")
+      echo "Not installed: $pkg - $reason"
+      missing_ref+=("$pkg - $reason")
     fi
   done <"$list"
 }
@@ -52,11 +80,11 @@ install -d "$REPORT_DIR"
 } >"$REPORT"
 
 if (( ${#missing_essential[@]} > 0 )); then
-  echo "WARNING: essential packages unavailable for armv7h: ${missing_essential[*]}"
+  echo "WARNING: ${#missing_essential[@]} essential package(s) did not install; see $REPORT"
 fi
 
 if (( ${#missing_desktop[@]} > 0 )); then
-  echo "WARNING: desktop packages unavailable for armv7h: ${missing_desktop[*]}"
+  echo "WARNING: ${#missing_desktop[@]} desktop package(s) did not install; see $REPORT"
 fi
 
 echo "Package report written to $REPORT"
