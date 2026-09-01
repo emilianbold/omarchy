@@ -11,7 +11,12 @@
 # obs-studio). See docs/armv7.md.
 
 hyprland
-hyprland-qtutils
+# guiutils, not qtutils: hyprland-qtutils is deprecated upstream and the Arch
+# package that replaced it is hyprland-guiutils, which is what
+# install/omarchy-base.packages asks for on x86_64 too.
+hyprland-guiutils
+hyprpicker
+hyprsunset
 uwsm
 quickshell
 qt6-wayland

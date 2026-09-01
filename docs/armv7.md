@@ -205,10 +205,15 @@ source. Two lists feed it:
 
 What a real build found, which is better than the lists above assume: `hyprland`,
 `quickshell`, `uwsm`, `sddm`, `foot`, both portals, the Qt6 stack, `mpv`,
-`gnome-keyring` and the shell tools all install from `armv7h`. Only a handful
-are genuinely absent — `hyprland-qtutils`, `xdg-terminal-exec`,
-`yaru-icon-theme` — alongside the Omarchy-repo packages that were never going to
-be there.
+`gnome-keyring` and the shell tools all install from `armv7h`. Only
+`xdg-terminal-exec` and `yaru-icon-theme` are genuinely absent, alongside the
+Omarchy-repo packages that were never going to be there.
+
+The third name that run reported, `hyprland-qtutils`, was this port's own
+mistake rather than a gap: it is deprecated upstream in favour of
+`hyprland-guiutils`, which is what Omarchy asks for on x86_64 and which
+`armv7h` has. A test now holds the ARMv7 lists to names Omarchy's own lists use,
+so a package typed from memory is caught before it costs a build.
 
 Read the report's reasons rather than its list of names. "not in the armv7h
 repositories" is the one that means build from source; "a dependency is

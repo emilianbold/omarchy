@@ -50,6 +50,35 @@ omarchy_only=$(read_packages "$INSTALL_DIR/packages/essential.packages" \
   fail "package lists name only packages Arch Linux ARM could carry" "found: $omarchy_only"
 pass "package lists name only packages Arch Linux ARM could carry"
 
+# The ARMv7 lists are a subset of what Omarchy installs on x86_64, so a name
+# that appears in neither x86 list is either a deliberate substitution or a
+# name typed from memory. hyprland-qtutils was the latter: Omarchy asks for
+# hyprland-guiutils, which armv7h has, and the build reported the wrong package
+# as missing instead of installing the right one.
+armv7_only=$(comm -23 \
+  <(read_packages "$INSTALL_DIR"/packages/*.packages | sort -u) \
+  <(read_packages "$ROOT/install/omarchy-base.packages" "$ROOT/install/omarchy-other.packages" | sort -u))
+
+# Each of these stands in for something x86_64 gets another way: the base
+# system the ISO pacstraps (polkit, sudo, xdg-user-dirs, xdg-utils), a
+# dependency worth naming outright because this machine has no ethernet if it
+# goes missing (wpa_supplicant), quickshell's QML runtime that arrives as a
+# dependency there (qt6-declarative), and Arch's full nerd font in place of
+# Omarchy's own ttf-jetbrains-mono-nerd-basic.
+expected_armv7_only="polkit
+qt6-declarative
+sudo
+ttf-jetbrains-mono-nerd
+wpa_supplicant
+xdg-user-dirs
+xdg-utils"
+
+if [[ $armv7_only != "$expected_armv7_only" ]]; then
+  fail "every ARMv7 package matches an Omarchy package name or a recorded substitution" \
+    "unexpected:"$'\n'"$(comm -13 <(printf '%s\n' "$expected_armv7_only") <(printf '%s\n' "$armv7_only"))"
+fi
+pass "every ARMv7 package matches an Omarchy package name or a recorded substitution"
+
 grep -q 'omarchy-refresh-extlinux' "$INSTALL_DIR/files/95-omarchy-extlinux.hook" ||
   fail "the pacman hook refreshes the extlinux config after a kernel upgrade"
 pass "the pacman hook refreshes the extlinux config after a kernel upgrade"
