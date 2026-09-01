@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer is a Rockchip RK3288 "veyron" Chromebook (such as the Asus C201P).
+
+omarchy-hw-dt-match "google,veyron"

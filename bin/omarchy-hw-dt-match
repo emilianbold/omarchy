@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Match against the device tree's compatible strings (case-insensitive).
+# omarchy:args=<pattern>
+
+# The ARM counterpart of omarchy-hw-match: boards without firmware DMI tables
+# identify themselves through /proc/device-tree/compatible, a NUL-separated
+# list running from the most specific board revision to the SoC.
+compatible="${OMARCHY_DT_COMPATIBLE_PATH:-/proc/device-tree/compatible}"
+
+[[ -r $compatible ]] || exit 1
+
+tr '\0' '\n' <"$compatible" | grep -qi "$1"
