@@ -4,11 +4,27 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-if ((EUID != 0)); then
-  if unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
-    exec unshare --user --map-auto --map-root-user --mount --propagation private bash "$0"
+# The mounts below hide /run, /var and /home, so they may only ever land in a
+# mount namespace this file created. A caller who is already root got here
+# without one -- in a container, or under sudo -- and running the body there
+# would take the real machine's /home away from every later test, and from the
+# person running them.
+if [[ -z ${OMARCHY_VM_BOUNDARY_NAMESPACE:-} ]]; then
+  export OMARCHY_VM_BOUNDARY_NAMESPACE=1
+
+  if ((EUID != 0)); then
+    if unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
+      exec unshare --user --map-auto --map-root-user --mount --propagation private bash "$0"
+    fi
+    pass "automatic subordinate-id namespace unavailable; skipping root Windows VM boundary probe"
+    exit 0
   fi
-  pass "automatic subordinate-id namespace unavailable; skipping root Windows VM boundary probe"
+
+  # Real root needs no user namespace, just its own mount namespace.
+  if unshare --mount --propagation private true 2>/dev/null; then
+    exec unshare --mount --propagation private bash "$0"
+  fi
+  pass "mount namespace unavailable; skipping root Windows VM boundary probe"
   exit 0
 fi
 
