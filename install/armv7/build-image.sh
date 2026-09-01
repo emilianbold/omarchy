@@ -21,7 +21,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OMARCHY_SOURCE="${OMARCHY_SOURCE:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 
 IMAGE_FILE="${IMAGE_FILE:-omarchy-armv7-veyron.img}"
-IMAGE_SIZE="${IMAGE_SIZE:-8192M}"
+# 8G filled up mid-install: the desktop set plus base-devel and the firmware
+# leaves little room, and an image that runs out of space part-way produces a
+# broken initramfs rather than an obvious failure. The image is zero-filled
+# before compression, so unused space costs nothing in the artifact -- only a
+# card of at least 16 GB.
+IMAGE_SIZE="${IMAGE_SIZE:-12288M}"
 PACKAGE_REPORT_FILE="${PACKAGE_REPORT_FILE:-${IMAGE_FILE%.img}-packages.report}"
 ROOT_LABEL="${ROOT_LABEL:-omarchy}"
 HOSTNAME="${HOSTNAME:-omarchy}"
@@ -49,10 +54,13 @@ WORK_DIR="$(mktemp -d /tmp/omarchy-armv7-work-XXXXXX)"
 
 log() { echo "▸ $*"; }
 
+# Innermost first, so unmounting in this order always works.
+TARGET_MOUNTS=(dev/pts dev sys proc var/cache/pacman/pkg)
+
 cleanup() {
   set +e
   rm -f "${MOUNT_DIR}/usr/bin/qemu-arm-static"
-  for sub in dev/pts dev sys proc; do
+  for sub in "${TARGET_MOUNTS[@]}"; do
     mountpoint -q "${MOUNT_DIR}/${sub}" && umount -l "${MOUNT_DIR}/${sub}"
   done
   mountpoint -q "$MOUNT_DIR" && umount -l "$MOUNT_DIR"
@@ -170,6 +178,12 @@ mount -t sysfs sysfs "${MOUNT_DIR}/sys"
 mount -o bind /dev "${MOUNT_DIR}/dev"
 mount -o bind /dev/pts "${MOUNT_DIR}/dev/pts"
 
+# Keep every package pacman downloads on the build host rather than in the
+# image. The cache is gigabytes by the end of a desktop install -- it was what
+# filled the image the first time -- and none of it belongs in the artifact.
+install -d "$WORK_DIR/pkgcache" "${MOUNT_DIR}/var/cache/pacman/pkg"
+mount -o bind "$WORK_DIR/pkgcache" "${MOUNT_DIR}/var/cache/pacman/pkg"
+
 # Arch Linux ARM's own /boot/boot.scr and extlinux entries describe boards this
 # is not; omarchy-refresh-extlinux writes the one this machine boots.
 rm -f "${MOUNT_DIR}/boot/boot.scr" "${MOUNT_DIR}/boot/boot.txt"
@@ -235,7 +249,16 @@ fi
 in_target pacman-key --init
 in_target pacman-key --populate archlinuxarm
 in_target pacman -Syu --noconfirm
-in_target pacman -S --noconfirm --needed linux-armv7 linux-firmware mkinitcpio base-devel
+in_target pacman -S --noconfirm --needed linux-armv7 mkinitcpio base-devel
+
+# Firmware: this board needs Broadcom's, for the BCM4354 that is its only
+# network. The full linux-firmware is mostly blobs for GPUs and NICs a
+# Chromebook does not have, and on a card-sized filesystem that is worth
+# skipping -- but only where the split package exists to skip it for.
+if ! in_target pacman -S --noconfirm --needed linux-firmware-broadcom 2>/dev/null; then
+  log "    linux-firmware-broadcom unavailable; installing the full firmware set"
+  in_target pacman -S --noconfirm --needed linux-firmware
+fi
 in_target locale-gen
 
 # ── Step 5: Omarchy ───────────────────────────────────────────────────────────
@@ -323,7 +346,9 @@ printf 'built: %s\ncommit: %s\nkernel: %s\n' \
   >"${MOUNT_DIR}/boot/BUILD_STAMP"
 
 echo "nameserver 1.1.1.1" >"${MOUNT_DIR}/etc/resolv.conf"
-in_target pacman -Scc --noconfirm >/dev/null 2>&1 || true
+# No cache to clear -- it lived on the build host (see Step 3) -- and the sync
+# databases are worth keeping, so the machine can install something without a
+# refresh first.
 
 # Give the machine back pacman's download sandbox, which only had to come off
 # for the emulated build (see Step 3).

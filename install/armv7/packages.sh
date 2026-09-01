@@ -33,6 +33,15 @@ package_failure_reason() {
     return
   fi
 
+  # Check disk space before the generic transaction failure: pacman reports
+  # running out of room as a failed transaction too, and reading that as a
+  # download problem sent a whole build's worth of packages into the report as
+  # "unavailable for armv7h" when the image had simply filled up.
+  if grep -q 'not enough free disk space\|too full' <<<"$output"; then
+    printf 'no space left in the image'
+    return
+  fi
+
   if grep -q 'failed retrieving file\|failed to commit transaction' <<<"$output"; then
     printf 'download failed'
     return
@@ -61,6 +70,16 @@ install_list() {
     else
       reason=$(package_failure_reason "$output")
       echo "Not installed: $pkg - $reason"
+
+      # A full disk is not a missing package: everything after it fails too,
+      # the report becomes a list of lies, and mkinitcpio later has no room to
+      # write an initramfs. Stop while the cause is still legible.
+      if [[ $reason == "no space left in the image" ]]; then
+        echo "ERROR: the image is out of space at '$pkg'. Build with a larger" >&2
+        echo "       IMAGE_SIZE, or install fewer packages." >&2
+        exit 1
+      fi
+
       missing_ref+=("$pkg - $reason")
     fi
   done <"$list"

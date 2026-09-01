@@ -76,6 +76,38 @@ pass "the run says out loud that something is missing"
   fail "the run names each failure with its reason" "$output"
 pass "the run names each failure with its reason"
 
+# A full image is not a missing package. Reading it as one turned a whole
+# build's worth of perfectly available packages into a report of things to go
+# build from source, and left mkinitcpio with no room to write an initramfs.
+cat >"$stub_bin/pacman" <<'STUB'
+#!/bin/bash
+case "$1" in
+  -Q) exit 1 ;;
+  -S)
+    echo "error: Partition / too full: 5122 blocks needed, 5119 blocks free" >&2
+    echo "error: failed to commit transaction (not enough free disk space)" >&2
+    exit 1
+    ;;
+  *) exit 1 ;;
+esac
+STUB
+
+full_output=$(PATH="$stub_bin:$PATH" \
+  OMARCHY_ARMV7_PACKAGE_DIR="$lists" \
+  OMARCHY_ARMV7_REPORT_DIR="$TMPDIR/state-full" \
+  bash -eE -c 'source "$1"' bash "$ROOT/install/armv7/packages.sh" 2>&1) &&
+  fail "running out of space stops the install" "$full_output"
+pass "running out of space stops the install"
+
+[[ $full_output == *"no space left in the image"* && $full_output == *"IMAGE_SIZE"* ]] ||
+  fail "running out of space says so, and says what to change" "$full_output"
+pass "running out of space says so, and says what to change"
+
+# It must stop at the first one, not grind through the rest of the list.
+(( $(grep -c "Not installed:" <<<"$full_output") == 1 )) ||
+  fail "running out of space stops at the first package" "$full_output"
+pass "running out of space stops at the first package"
+
 [[ $output == *"Installed alsa-utils"* ]] ||
   fail "the run reports what it installed" "$output"
 pass "the run reports what it installed"

@@ -159,6 +159,12 @@ attached.
 It is paths-scoped to the ARMv7 port: this is the repository's only workflow,
 and nothing outside the port should pay for a one-to-two hour emulated build.
 
+The image is 12 GB, so it wants a card of at least 16 GB. That is mostly empty
+space on purpose: the desktop set, `base-devel` and the firmware filled an 8 GB
+image mid-install, and there has to be room left for the machine to build the
+packages `armv7h` does not carry. Free space is zeroed before compression, so
+the artifact stays small regardless.
+
 Flash it, then fix the GPT backup header, which Depthcharge checks:
 
 ```bash
@@ -189,8 +195,18 @@ source. Two lists feed it:
   missing here is reported as a warning.
 - `packages/desktop.packages` — the Omarchy desktop surface.
 
-Nothing in this repository can confirm what `armv7h` currently carries; the
-report from a real run is the authority.
+What a real build found, which is better than the lists above assume: `hyprland`,
+`quickshell`, `uwsm`, `sddm`, `foot`, both portals, the Qt6 stack, `mpv`,
+`gnome-keyring` and the shell tools all install from `armv7h`. Only a handful
+are genuinely absent — `hyprland-qtutils`, `xdg-terminal-exec`,
+`yaru-icon-theme` — alongside the Omarchy-repo packages that were never going to
+be there.
+
+Read the report's reasons rather than its list of names. "not in the armv7h
+repositories" is the one that means build from source; "a dependency is
+unavailable" points at a package to chase instead; and the build stops outright
+on "no space left in the image", because a full disk otherwise files every
+remaining package as missing and leaves `mkinitcpio` no room for an initramfs.
 
 ## Board support
 
