@@ -21,4 +21,6 @@ unzip
 wireless-regdb
 wireplumber
 wpa_supplicant
+xdg-user-dirs
+xdg-utils
 zram-generator

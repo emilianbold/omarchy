@@ -174,6 +174,15 @@ mount -o bind /dev/pts "${MOUNT_DIR}/dev/pts"
 # is not; omarchy-refresh-extlinux writes the one this machine boots.
 rm -f "${MOUNT_DIR}/boot/boot.scr" "${MOUNT_DIR}/boot/boot.txt"
 
+# pacman 7 confines downloads with Landlock and drops them to the alpm user.
+# qemu-user does not translate the Landlock syscalls, so inside this chroot
+# every transaction dies with "Landlock is not supported by the kernel" before
+# it fetches anything. Turn the sandbox off for the build only -- Step 7 takes
+# this back out, so the machine that ships still has it.
+if ! grep -q '^DisableSandbox' "${MOUNT_DIR}/etc/pacman.conf"; then
+  sed -i '/^\[options\]/a DisableSandbox' "${MOUNT_DIR}/etc/pacman.conf"
+fi
+
 cat >"${MOUNT_DIR}/etc/fstab" <<EOF
 LABEL=${ROOT_LABEL}  /  ext4  rw,relatime  0  1
 EOF
@@ -213,6 +222,18 @@ in_target bash -c 'for cmd in /usr/share/omarchy/bin/omarchy*; do ln -sf "$cmd" 
 install -d "${MOUNT_DIR}/etc/omarchy"
 printf '%s\n' "$DT_COMPATIBLE" >"${MOUNT_DIR}/etc/omarchy/dt-compatible"
 
+# What omarchy-settings ships to /etc/skel on x86_64, where useradd -m is what
+# puts it in a new user's home. Seeding skel rather than the home directory
+# keeps that mechanism identical here, so a second user created later on the
+# machine gets the same defaults.
+install -d "${MOUNT_DIR}/etc/skel/.config"
+bsdtar -cf - -C "${OMARCHY_SOURCE}/config" . |
+  bsdtar -xf - -C "${MOUNT_DIR}/etc/skel/.config"
+cat >"${MOUNT_DIR}/etc/skel/.bashrc" <<'EOF'
+[ -r /usr/share/omarchy/default/bash/env-bootstrap ] && . /usr/share/omarchy/default/bash/env-bootstrap
+[ -r "$OMARCHY_PATH/default/bash/rc" ] && . "$OMARCHY_PATH/default/bash/rc"
+EOF
+
 # Arch Linux ARM's default account has a published password; replace it.
 in_target userdel -r alarm 2>/dev/null || true
 in_target useradd -m -G wheel,audio,video,storage,input -s /bin/bash "$USERNAME"
@@ -222,14 +243,6 @@ install -Dm440 /dev/stdin "${MOUNT_DIR}/etc/sudoers.d/10-omarchy-wheel" <<'EOF'
 %wheel ALL=(ALL:ALL) ALL
 EOF
 
-# What /etc/skel would seed from omarchy-settings on x86_64.
-install -d "${MOUNT_DIR}/home/${USERNAME}/.config"
-bsdtar -cf - -C "${OMARCHY_SOURCE}/config" . |
-  bsdtar -xf - -C "${MOUNT_DIR}/home/${USERNAME}/.config"
-cat >"${MOUNT_DIR}/home/${USERNAME}/.bashrc" <<'EOF'
-[ -r /usr/share/omarchy/default/bash/env-bootstrap ] && . /usr/share/omarchy/default/bash/env-bootstrap
-[ -r "$OMARCHY_PATH/default/bash/rc" ] && . "$OMARCHY_PATH/default/bash/rc"
-EOF
 in_target chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}"
 
 # ── Step 6: run Omarchy setup in the target ───────────────────────────────────
@@ -246,6 +259,17 @@ in_target env \
   OMARCHY_LOG_TO_STDOUT=1 \
   PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
   omarchy-apply-system --install-user "$USERNAME" --first-install
+
+# The ISO's per-user half, run as the user the same way. It is not fatal here:
+# it ends in leaves that want packages armv7h may not carry (chromium for the
+# default browser, mise), and an image that boots to a desktop with an
+# unfinished home is worth more than no image. What it managed is visible in
+# ~/.local/state/omarchy/done/finalize-user on the machine.
+user_finalized=ok
+if ! in_target runuser -u "$USERNAME" -- bash -lc 'omarchy-provision-user --first-install'; then
+  user_finalized=incomplete
+  log "    WARNING: omarchy-provision-user did not finish; the user's home is partly unconfigured"
+fi
 
 # ── Step 7: boot payload and checks ───────────────────────────────────────────
 log "[7/7] Writing the signed U-Boot to KERN-A and verifying the boot files"
@@ -273,6 +297,12 @@ printf 'built: %s\ncommit: %s\nkernel: %s\n' \
 echo "nameserver 1.1.1.1" >"${MOUNT_DIR}/etc/resolv.conf"
 in_target pacman -Scc --noconfirm >/dev/null 2>&1 || true
 
+# Give the machine back pacman's download sandbox, which only had to come off
+# for the emulated build (see Step 3).
+sed -i '/^DisableSandbox$/d' "${MOUNT_DIR}/etc/pacman.conf"
+grep -q '^DisableSandbox' "${MOUNT_DIR}/etc/pacman.conf" &&
+  { echo "ERROR: the build's DisableSandbox is still in the image's pacman.conf" >&2; exit 1; }
+
 # Arch Linux ARM ships sshd enabled. This image has a published default
 # password, so leave it off until whoever flashes it has changed that.
 in_target systemctl disable sshd.service >/dev/null 2>&1 || true
@@ -290,6 +320,7 @@ report="${MOUNT_DIR}/var/lib/omarchy/armv7-packages.report"
 if [[ -f $report ]]; then
   cat "$report"
   cp "$report" "$PACKAGE_REPORT_FILE"
+  printf 'user-finalization %s\n' "$user_finalized" >>"$PACKAGE_REPORT_FILE"
 fi
 
 sync

@@ -21,6 +21,44 @@ what an armv7h machine cannot have.
 `install/armv7/all.sh` and none of the x86 leaves run. Nothing in the x86 path
 changes.
 
+## How much of this is Omarchy's own build
+
+The image builder is a substrate, not a second installer. It does what the ISO's
+pacstrap phase does — partition, unpack a rootfs, install a kernel — and then
+hands over to Omarchy's own entry points, unchanged:
+
+- `omarchy-apply-system --install-user U --first-install`, the same command the
+  ISO runs in the target chroot, which routes to `install/armv7/all.sh`.
+- `omarchy-provision-user --first-install`, run as the user, the same per-user
+  finalization the ISO runs. It is allowed to fail here, because it ends in
+  leaves that want packages `armv7h` may not carry; the result is recorded in
+  the package report.
+- `/etc/skel` is seeded from this repo's `config/` tree and `useradd -m` copies
+  it into the new user's home — the same mechanism, with the repo standing in
+  for the `omarchy-settings` package.
+- The ARMv7 chain is built from ordinary setup leaves: sourced, no shebang,
+  addressed through `$OMARCHY_INSTALL`, orchestrated by `run_logged`. It reuses
+  the x86 leaves that apply as-is — `hardware/network.sh`,
+  `hardware/set-wireless-regdom.sh`, `config/theme-system.sh`,
+  `config/browser-policy.sh`, `config/locate.sh`.
+- `omarchy-refresh-extlinux` mirrors `omarchy-refresh-limine`, down to the
+  pacman hook that reruns it after a kernel upgrade, and the `hw-` commands
+  follow the same metadata and routing conventions as their x86 counterparts.
+
+Two things are genuinely substituted, and both are the work an upstream port
+would have to finish:
+
+1. **No packages.** On x86_64 the `omarchy` and `omarchy-settings` packages put
+   `bin/` on `PATH` as `/usr/bin/omarchy-*` and own the `/etc` drop-ins and
+   `/etc/skel`. Nothing builds those for `armv7h`, so the builder copies the
+   repository to `/usr/share/omarchy`, symlinks the commands into
+   `/usr/local/bin`, and `install/armv7/settings.sh` places the handful of
+   system files `omarchy-settings` would own. Building those two packages for
+   `armv7h` is what would replace this.
+2. **No ISO.** Installation orchestration lives in the separate ISO repository
+   and is archiso-based, so it cannot produce an ARM image. `build-image.sh`
+   covers only the part the ISO would otherwise do before setup runs.
+
 ## Boot chain
 
 The C201P boots ChromeOS's verified boot firmware, which will only start a
