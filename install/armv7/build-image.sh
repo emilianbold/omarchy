@@ -200,10 +200,38 @@ EOF
 ln -sf "/usr/share/zoneinfo/${TIMEZONE}" "${MOUNT_DIR}/etc/localtime"
 echo "${LOCALE} UTF-8" >"${MOUNT_DIR}/etc/locale.gen"
 echo "LANG=${LOCALE}" >"${MOUNT_DIR}/etc/locale.conf"
-cp /etc/resolv.conf "${MOUNT_DIR}/etc/resolv.conf"
+# The chroot needs a resolver it can actually reach. Copying the host's
+# /etc/resolv.conf is not enough: on a systemd-resolved machine that file names
+# the 127.0.0.53 stub, which resolves nothing from in here, and the rootfs ships
+# /etc/resolv.conf as a symlink into a /run that nothing has populated. Prefer
+# resolved's uplink file, which names the real servers, and replace the symlink
+# with a regular file.
+resolv_source=/etc/resolv.conf
+[[ -f /run/systemd/resolve/resolv.conf ]] && resolv_source=/run/systemd/resolve/resolv.conf
+
+rm -f "${MOUNT_DIR}/etc/resolv.conf"
+install -m 0644 "$resolv_source" "${MOUNT_DIR}/etc/resolv.conf"
+
+if ! grep -q '^nameserver' "${MOUNT_DIR}/etc/resolv.conf" ||
+   grep -q '^nameserver 127\.' "${MOUNT_DIR}/etc/resolv.conf"; then
+  printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' >"${MOUNT_DIR}/etc/resolv.conf"
+fi
 
 # ── Step 4: base system ───────────────────────────────────────────────────────
 log "[4/7] Updating the base system and installing the kernel (slow under emulation)"
+
+# Fail here, in a second, rather than eighty seconds later inside pacman with
+# four "could not resolve host" lines that read like a mirror outage. The
+# mirrors come from the rootfs's own /etc/pacman.d/mirrorlist, which is Arch
+# Linux ARM's geo-redirecting mirror -- it is the armv7h package source, not
+# something this port picks.
+if ! in_target getent hosts mirror.archlinuxarm.org >/dev/null 2>&1; then
+  echo "ERROR: the build chroot cannot resolve mirror.archlinuxarm.org." >&2
+  echo "       Its /etc/resolv.conf reads:" >&2
+  sed 's/^/       /' "${MOUNT_DIR}/etc/resolv.conf" >&2
+  exit 1
+fi
+
 in_target pacman-key --init
 in_target pacman-key --populate archlinuxarm
 in_target pacman -Syu --noconfirm
