@@ -2,10 +2,28 @@
 
 # omarchy:summary=Returns true if a battery is present on the system.
 
-for bat in /sys/class/power_supply/BAT*; do
-  [[ -r $bat/present ]] &&
-  [[ $(cat $bat/present) == "1" ]] &&
-  [[ $(cat $bat/type) == "Battery" ]] &&
+power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+
+# BAT0/BAT1 is an ACPI naming convention. Machines that describe their battery
+# through the device tree instead name it after the driver and bus that found
+# it, so match on what the device says it is rather than on what it is called:
+# an ARM Chromebook's smart battery arrives as sbs-20-000b.
+for supply in "$power_supply_path"/*; do
+  [[ -r $supply/type ]] || continue
+  [[ $(<"$supply/type") == "Battery" ]] || continue
+
+  # Wireless mice and keyboards register batteries too, and mark themselves
+  # with scope=Device. Anything powering the machine is scope=System, or says
+  # nothing at all.
+  if [[ -r $supply/scope ]]; then
+    [[ $(<"$supply/scope") == "System" ]] || continue
+  fi
+
+  # A battery bay with no battery in it reports present=0.
+  if [[ -r $supply/present ]]; then
+    [[ $(<"$supply/present") == "1" ]] || continue
+  fi
+
   exit 0
 done
 
