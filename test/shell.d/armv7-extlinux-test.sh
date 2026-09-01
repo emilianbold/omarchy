@@ -73,6 +73,21 @@ grep -q "omarchy-fallback" "$boot_single/extlinux/extlinux.conf" &&
   fail "omitting the fallback entry when the image is absent"
 pass "omitting the fallback entry when the image is absent"
 
+# The lookup is not veyron-specific: any board whose dtb is named after its
+# compatible string resolves the same way.
+boot_imx="$TMPDIR/boot-imx"
+make_boot "$boot_imx"
+mkdir -p "$boot_imx/dtbs/nxp/imx"
+: >"$boot_imx/dtbs/nxp/imx/imx6q-sabresd.dtb"
+printf 'fsl,imx6q-sabresd\0fsl,imx6q\0' >"$TMPDIR/compatible-imx"
+OMARCHY_BOOT_DIR="$boot_imx" \
+  OMARCHY_EXTLINUX_SETTINGS="$settings" \
+  OMARCHY_DT_COMPATIBLE_PATH="$TMPDIR/compatible-imx" \
+  omarchy-refresh-extlinux >/dev/null || fail "another board's device tree resolves"
+grep -q "FDT /boot/dtbs/nxp/imx/imx6q-sabresd.dtb" "$boot_imx/extlinux/extlinux.conf" ||
+  fail "another board's device tree resolves" "$(cat "$boot_imx/extlinux/extlinux.conf")"
+pass "another board's device tree resolves"
+
 boot_no_kernel="$TMPDIR/boot-no-kernel"
 make_boot "$boot_no_kernel"
 rm "$boot_no_kernel/zImage"

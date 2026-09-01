@@ -184,7 +184,7 @@ in_target userdel -r alarm 2>/dev/null || true
 in_target useradd -m -G wheel,audio,video,storage,input -s /bin/bash "$USERNAME"
 echo "${USERNAME}:${PASSWORD}" | in_target chpasswd
 echo "root:${ROOT_PASSWORD}" | in_target chpasswd
-install -Dm600 /dev/stdin "${MOUNT_DIR}/etc/sudoers.d/10-omarchy-wheel" <<'EOF'
+install -Dm440 /dev/stdin "${MOUNT_DIR}/etc/sudoers.d/10-omarchy-wheel" <<'EOF'
 %wheel ALL=(ALL:ALL) ALL
 EOF
 

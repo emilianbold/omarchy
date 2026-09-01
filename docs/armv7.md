@@ -150,6 +150,10 @@ machine's smart battery arrives as `sbs-20-000b`.
 - **The Omarchy shell.** Quickshell and the Omarchy-built packages have to come
   from source. Until then the session is Hyprland with whatever of the desktop
   list installed.
+- **Reaching a session.** SDDM is enabled only if it installed. When it did not,
+  the machine boots to a TTY and the session starts by hand with
+  `uwsm start hyprland`; `/var/lib/omarchy/armv7-packages.report` says which of
+  the two is the case.
 - **Performance.** A dual-core Cortex-A17 with 2-4 GB of RAM and Panfrost is not
   what the desktop was tuned for; compositing works, video and the browser are
   modest.

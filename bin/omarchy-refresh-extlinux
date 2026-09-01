@@ -8,12 +8,13 @@
 # it names as ordinary files off the root filesystem, so a kernel upgrade only
 # has to leave this file describing what is currently in /boot.
 #
-# Two entries are written, newest configuration first: if the default entry
-# fails to load, U-Boot walks the remaining labels on its own
+# The default entry is followed by one for the fallback initramfs: if the
+# default fails to load, U-Boot walks the remaining labels on its own
 # (boot_unattempted_labels() in boot/pxe_utils.c). That is the only recovery
 # path on a machine like the C201P, which has no serial console and no display
 # during U-Boot, so a boot menu would be invisible but the fallthrough still
-# works.
+# works. It only covers failures before the jump into Linux; a kernel that
+# loads and then panics is past U-Boot's reach.
 
 set -euo pipefail
 
@@ -45,27 +46,26 @@ if [[ -z $kernel ]]; then
   exit 1
 fi
 
-# Derive the board's device tree from what the board calls itself, so the whole
-# veyron family works and not just the C201P: "rockchip,rk3288" + "google,speedy"
-# name dtbs/rockchip/rk3288-veyron-speedy.dtb.
+# Find the board's device tree by what the board calls itself, so the whole
+# veyron family works and not just the C201P.
 find_dtb() {
   local compatible="${OMARCHY_DT_COMPATIBLE_PATH:-/proc/device-tree/compatible}"
-  local entry soc board candidate
+  local entry board candidate
 
   [[ -r $compatible ]] || return 1
 
-  # "rockchip,rk3288" gives the filename prefix upstream builds dtbs under; the
-  # board entries give the rest.
-  soc=$(tr '\0' '\n' <"$compatible" | sed -nE 's|^[a-z0-9]+,(rk[0-9]+)$|\1|p' | head -n 1)
-  [[ -n $soc ]] || return 1
-
-  # Walk the compatible list as it stands: most specific board revision first,
-  # down to the family. "google,veyron-speedy-rev9" has no dtb of its own, so
-  # the walk falls through to "google,veyron-speedy", which does. Search rather
-  # than assume a vendor subdirectory, since layouts differ between kernels.
+  # Walk the compatible list in the order the kernel presents it: the most
+  # specific board revision first, down to the SoC. Upstream names the file
+  # after the board, prefixed by the SoC, so match the tail:
+  # "google,veyron-speedy" finds rk3288-veyron-speedy.dtb, while
+  # "google,veyron-speedy-rev9" -- which has no dtb of its own -- matches
+  # nothing and falls through to it. Anchoring on the tail keeps the family
+  # entry "google,veyron" from picking some other veyron board's tree.
   while read -r entry; do
     board="${entry#*,}"
-    candidate=$(find "$BOOT_DIR/dtbs" -name "${soc}-${board}.dtb" -printf '%P\n' 2>/dev/null | sort | head -n 1)
+    [[ -n $board ]] || continue
+
+    candidate=$(find "$BOOT_DIR/dtbs" -name "*${board}.dtb" -printf '%P\n' 2>/dev/null | sort | head -n 1)
     if [[ -n $candidate ]]; then
       printf '%s\n' "dtbs/$candidate"
       return 0
@@ -135,9 +135,8 @@ trap 'rm -f "$generated"' EXIT
 
   emit_label omarchy "Omarchy" "$initramfs"
 
-  # The fallback initramfs carries every module rather than the ones this
-  # machine needed last time it booted, so it is the entry that survives a
-  # storage or display driver falling out of the trimmed image.
+  # mkinitcpio's fallback image is the untrimmed one, so this is the entry that
+  # survives a module the default image needed and did not carry.
   if [[ -n $fallback_initramfs ]]; then
     emit_label omarchy-fallback "Omarchy (fallback initramfs)" "$fallback_initramfs"
   fi
