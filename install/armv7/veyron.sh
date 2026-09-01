@@ -37,5 +37,15 @@ EOF
 
   # Rebuild both images so the module list above is actually in them. The
   # fallback image is what the second extlinux entry boots.
-  mkinitcpio -P
+  #
+  # Fatal on purpose: mkinitcpio exits non-zero when it cannot find a module the
+  # drop-in names, and warns that the image "may not be complete". An incomplete
+  # initramfs on this machine means a kernel that cannot mount root and reports
+  # it with a blank screen, so stop here rather than ship one.
+  if ! mkinitcpio -P; then
+    echo "ERROR: mkinitcpio failed. If it named a module it could not find, that" >&2
+    echo "       name is wrong for this kernel; fix it in" >&2
+    echo "       $OMARCHY_INSTALL/armv7/files/mkinitcpio-veyron.conf" >&2
+    exit 1
+  fi
 fi
