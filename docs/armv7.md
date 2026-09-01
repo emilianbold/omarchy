@@ -78,6 +78,23 @@ Chromebook:
   so a file with the board's compatible strings stands in for it.
 - `OMARCHY_EXTLINUX_ROOT` — `findmnt /` answers for the build host's disk.
 
+Two files come out: the image, and `*-packages.report` copied out of it — the
+list of packages `armv7h` could not resolve, which is what says how much of the
+desktop this build actually got.
+
+### In CI
+
+`.github/workflows/armv7-image.yml` runs the same script on a GitHub runner
+(qemu-user-static, same as the c201p project's workflow), because nothing here
+can be validated without building it. It runs the ARMv7 tests first so a typo
+fails in a minute rather than an hour into emulated `pacman`, uploads the
+package report even when the build fails, and uploads the compressed image.
+Pushing a tag starting with `armv7-` publishes a prerelease with the image
+attached.
+
+It is paths-scoped to the ARMv7 port: this is the repository's only workflow,
+and nothing outside the port should pay for a one-to-two hour emulated build.
+
 Flash it, then fix the GPT backup header, which Depthcharge checks:
 
 ```bash

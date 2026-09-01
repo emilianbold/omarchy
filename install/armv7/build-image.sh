@@ -22,6 +22,7 @@ OMARCHY_SOURCE="${OMARCHY_SOURCE:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 
 IMAGE_FILE="${IMAGE_FILE:-omarchy-armv7-veyron.img}"
 IMAGE_SIZE="${IMAGE_SIZE:-8192M}"
+PACKAGE_REPORT_FILE="${PACKAGE_REPORT_FILE:-${IMAGE_FILE%.img}-packages.report}"
 ROOT_LABEL="${ROOT_LABEL:-omarchy}"
 HOSTNAME="${HOSTNAME:-omarchy}"
 USERNAME="${USERNAME:-omarchy}"
@@ -248,8 +249,15 @@ dd if=/dev/zero of="${MOUNT_DIR}/ZEROES" bs=1M status=none 2>/dev/null || true
 rm -f "${MOUNT_DIR}/ZEROES"
 
 cat "${MOUNT_DIR}/boot/extlinux/extlinux.conf"
+
+# Copy the package report out beside the image. It is the answer to the
+# question this port cannot answer without a build -- what armv7h actually
+# carries -- and inside the image it is only readable by mounting it again.
 report="${MOUNT_DIR}/var/lib/omarchy/armv7-packages.report"
-[[ -f $report ]] && cat "$report"
+if [[ -f $report ]]; then
+  cat "$report"
+  cp "$report" "$PACKAGE_REPORT_FILE"
+fi
 
 sync
 cleanup
@@ -259,6 +267,7 @@ cat <<EOF
 
 ════════════════════════════════════════════════════════════════
   Image built: ${IMAGE_FILE}
+  Package report: ${PACKAGE_REPORT_FILE}
 
   Flash it, then fix the GPT backup header on the card:
     dd if=${IMAGE_FILE} of=/dev/sdX bs=4M status=progress conv=fsync

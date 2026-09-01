@@ -1,0 +1,142 @@
+name: Build ARMv7 image (veyron Chromebook)
+
+# The ARMv7 port has no ISO behind it: install/armv7/build-image.sh is what
+# produces something bootable, and it only runs on an x86_64 host with
+# qemu-user-static. Building it here is the only way the port gets tested
+# without a Chromebook on the desk -- and the package report it uploads is the
+# answer to the question the port cannot answer on its own: what Arch Linux ARM
+# actually carries for armv7h today.
+#
+# Paths-scoped on purpose: this is the repository's only workflow, and nothing
+# outside the ARMv7 port should pay for a ~1-2 hour emulated build.
+
+on:
+  push:
+    paths:
+      - 'install/armv7/**'
+      - 'bin/omarchy-refresh-extlinux'
+      - 'bin/omarchy-hw-armv7'
+      - 'bin/omarchy-hw-dt-match'
+      - 'bin/omarchy-hw-chromebook-veyron'
+      - 'bin/omarchy-apply-system'
+      - '.github/workflows/armv7-image.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: armv7-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Cheap and fast, so a typo in a leaf fails in a minute instead of after an
+  # hour of emulated pacman.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the ARMv7 tests and the CLI suite
+        run: |
+          for test in test/shell.d/armv7-*-test.sh; do
+            echo "==> $test"
+            bash "$test"
+          done
+          ./test/cli
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    # pacman under qemu-user is slow, and the desktop package set is the slow
+    # part of it. Give it room rather than lose a build at the 6 hour ceiling.
+    timeout-minutes: 300
+
+    permissions:
+      contents: write # tagged builds publish a release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        run: |
+          # The image is zero-filled before compression, so the full 8 GB has
+          # to fit alongside the .xz.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+          sudo apt-get autoremove -y -qq
+          df -h /
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            qemu-user-static \
+            binfmt-support \
+            gdisk \
+            cgpt \
+            libarchive-tools \
+            curl \
+            xz-utils
+
+      - name: Verify binfmt ARM registration
+        run: update-binfmts --display qemu-arm || sudo update-binfmts --enable qemu-arm
+
+      - name: Build image
+        run: |
+          sudo IMAGE_FILE=omarchy-armv7-veyron.img ./install/armv7/build-image.sh
+
+      # Uploaded even when the build fails: a run that died in the middle of
+      # the package set still says which packages armv7h refused, which is the
+      # finding worth keeping.
+      - name: Upload the package report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: armv7-packages-report-${{ github.sha }}
+          path: omarchy-armv7-veyron-packages.report
+          if-no-files-found: warn
+
+      - name: Compress image
+        run: |
+          sudo chown "$USER:$USER" omarchy-armv7-veyron.img
+          xz -6 -T0 --verbose omarchy-armv7-veyron.img
+          sha256sum omarchy-armv7-veyron.img.xz > omarchy-armv7-veyron.img.xz.sha256
+          ls -lh omarchy-armv7-veyron.img.xz
+
+      - name: Upload the image
+        uses: actions/upload-artifact@v4
+        with:
+          name: omarchy-armv7-veyron-${{ github.sha }}
+          path: |
+            omarchy-armv7-veyron.img.xz
+            omarchy-armv7-veyron.img.xz.sha256
+          # Each image is hundreds of megabytes against the account's artifact
+          # quota; long enough to flash-test the same day. Tag a build to keep
+          # one around.
+          retention-days: 3
+
+      - name: Publish a release (armv7 tags only)
+        if: startsWith(github.ref, 'refs/tags/armv7-')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            omarchy-armv7-veyron.img.xz
+            omarchy-armv7-veyron.img.xz.sha256
+          prerelease: true
+          body: |
+            ## Omarchy on ARMv7 (Rockchip RK3288 "veyron" Chromebooks)
+
+            Proof of concept for the Asus C201P. See `docs/armv7.md`.
+
+            ```
+            sha256sum -c omarchy-armv7-veyron.img.xz.sha256
+            xz -d omarchy-armv7-veyron.img.xz
+            sudo dd if=omarchy-armv7-veyron.img of=/dev/sdX bs=4M status=progress conv=fsync
+            sudo sgdisk -e /dev/sdX
+            ```
+
+            The Chromebook needs developer mode with `dev_boot_usb=1` and
+            `dev_boot_signed_only=0`; press **Ctrl+U** at the developer warning
+            screen. Default login `omarchy` / `omarchy` -- change it, and the
+            root password, on first boot.
+
+            The signed U-Boot in KERN-A comes from the
+            [c201p](https://github.com/emilianbold/c201p) project.
