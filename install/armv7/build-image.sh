@@ -316,8 +316,13 @@ in_target env \
 # default browser, mise), and an image that boots to a desktop with an
 # unfinished home is worth more than no image. What it managed is visible in
 # ~/.local/state/omarchy/done/finalize-user on the machine.
+#
+# runuser -l, not -u: -u keeps the caller's environment, so HOME stayed /root
+# and the user phase wrote its dotfiles at a path it could not create ("Can't
+# save user-dirs.dirs, failed to create directory"). -l builds the target
+# user's login environment, HOME included.
 user_finalized=ok
-if ! in_target runuser -u "$USERNAME" -- bash -lc 'omarchy-provision-user --first-install'; then
+if ! in_target runuser -l "$USERNAME" -c 'omarchy-provision-user --first-install'; then
   user_finalized=incomplete
   log "    WARNING: omarchy-provision-user did not finish; the user's home is partly unconfigured"
 fi

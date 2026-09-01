@@ -112,12 +112,20 @@ verified this chain on the hardware; its `BOOTCOMMAND` looks for
 `/boot/extlinux/extlinux.conf` on partition 2 of the SD card and then of the
 eMMC, which is the layout the image builder writes.
 
-Two entries are always generated, the second pointing at the fallback
-initramfs. If the default entry fails to load, U-Boot walks the remaining
-labels by itself. That matters here: U-Boot on this machine drives no display,
-so a boot menu would be invisible, but the automatic fallthrough still works. It
-only covers failures *before* the jump into Linux — a kernel that loads and then
-panics is past U-Boot's reach.
+A second entry is generated for the fallback initramfs when the kernel package
+ships one, so that U-Boot can walk to it by itself if the default entry fails to
+load — the only recovery this machine has, since U-Boot drives no display here
+and a boot menu would be invisible. It covers failures *before* the jump into
+Linux; a kernel that loads and then panics is past U-Boot's reach.
+
+On this board there is one entry, because `linux-armv7` defines only the
+`default` preset. Little is lost: the veyron drop-in takes `autodetect` out of
+`HOOKS`, so the image that entry boots already carries every module rather than
+the trimmed set a fallback image would exist to backstop.
+
+Note the device tree lands at `/boot/dtbs/rk3288-veyron-speedy.dtb`, flat rather
+than under a `rockchip/` vendor directory. That is why the lookup searches for
+the file instead of assuming a layout.
 
 ## Building an image
 
