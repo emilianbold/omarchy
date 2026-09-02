@@ -100,6 +100,30 @@ if [[ $armv7_only != "$expected_armv7_only" ]]; then
 fi
 pass "every ARMv7 package matches an Omarchy package name or a recorded substitution"
 
+# SDDM defaults to X11 and there is no X server in this image, so an ARMv7
+# target that never gets told otherwise reaches graphical.target and shows
+# nothing: "Failed to read display number from pipe", then a dead display
+# manager on a machine whose only console is that screen.
+grep -q 'DisplayServer=wayland' "$INSTALL_DIR/settings.sh" ||
+  fail "the ARMv7 settings put SDDM on Wayland"
+grep -q 'wayland-sessions/omarchy.desktop' "$INSTALL_DIR/settings.sh" ||
+  fail "the ARMv7 settings install the Omarchy session file"
+pass "the ARMv7 settings put SDDM on Wayland with a session to start"
+
+# Free space is only touched after the page cache is flushed. The other order
+# fills the filesystem while an install's writes are still unallocated, and ext4
+# drops them at writeback -- which shipped an image with a zero-length library.
+sed -n '/^sync$/,$p' "$INSTALL_DIR/build-image.sh" | grep -q 'fstrim\|ZEROES' ||
+  fail "the builder flushes writes before reclaiming free space"
+grep -n 'ZEROES\|^sync$' "$INSTALL_DIR/build-image.sh" | head -1 | grep -q ':sync$' ||
+  fail "the builder flushes writes before reclaiming free space" \
+    "$(grep -n 'ZEROES\|^sync$' "$INSTALL_DIR/build-image.sh" | head -3)"
+pass "the builder flushes writes before reclaiming free space"
+
+grep -q 'not valid ELF files' "$INSTALL_DIR/build-image.sh" ||
+  fail "the builder verifies shared libraries before shipping the image"
+pass "the builder verifies shared libraries before shipping the image"
+
 grep -q 'omarchy-refresh-extlinux' "$INSTALL_DIR/files/95-omarchy-extlinux.hook" ||
   fail "the pacman hook refreshes the extlinux config after a kernel upgrade"
 pass "the pacman hook refreshes the extlinux config after a kernel upgrade"

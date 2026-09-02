@@ -385,9 +385,49 @@ grep -q '^DisableSandbox' "${MOUNT_DIR}/etc/pacman.conf" &&
 # password, so leave it off until whoever flashes it has changed that.
 in_target systemctl disable sshd.service >/dev/null 2>&1 || true
 
-# Zeroing the free space costs nothing here and makes the image compress.
-dd if=/dev/zero of="${MOUNT_DIR}/ZEROES" bs=1M status=none 2>/dev/null || true
-rm -f "${MOUNT_DIR}/ZEROES"
+# Flush every pending write before going near the free space.
+#
+# ext4 allocates lazily, so at this point an install's worth of file data can
+# still be sitting in the page cache with no blocks assigned. Filling the
+# filesystem first makes those allocations fail at writeback -- silently, since
+# nothing is watching a `dd` that is expected to end in ENOSPC -- and the file
+# is left empty. That shipped an image whose /usr/lib/libllhttp.so.9.3 was
+# zero bytes: `ls` died with "invalid ELF header" and the display manager never
+# started, while the build reported success from end to end.
+sync
+sync -f "$MOUNT_DIR" 2>/dev/null || true
+
+# Discard beats zero-filling: it punches holes for the free blocks instead of
+# writing to them, so nothing has to be allocated at all and the image is
+# sparse again. Zero-filling stays as the fallback where the loop device cannot
+# discard -- now that the cache is flushed, it has nothing left to lose.
+if fstrim "$MOUNT_DIR" 2>/dev/null; then
+  log "    Free space reclaimed by discard"
+else
+  log "    No discard support; zero-filling free space instead"
+  dd if=/dev/zero of="${MOUNT_DIR}/ZEROES" bs=1M status=none 2>/dev/null || true
+  rm -f "${MOUNT_DIR}/ZEROES"
+  sync
+fi
+
+# Every shared library has to be a real ELF file, and this is the last moment to
+# find out: it runs after the free-space work above, which is what damaged one.
+# Checked on the host, where reading thirty thousand headers costs seconds
+# rather than minutes under emulation.
+log "    Verifying shared libraries"
+corrupt=$(find "${MOUNT_DIR}/usr/lib" -type f -name '*.so*' -print0 |
+  xargs -0 -r -n 64 head -c 4 -v 2>/dev/null |
+  awk '/^==> / { file = substr($0, 5, length($0) - 8); next }
+       $0 !~ /^.ELF/ { print file }' |
+  head -20)
+
+if [[ -n $corrupt ]]; then
+  echo "ERROR: these shared libraries are not valid ELF files:" >&2
+  sed 's/^/       /' <<<"$corrupt" >&2
+  echo "       The image is corrupt; a machine flashed with it cannot run the" >&2
+  echo "       programs that link them." >&2
+  exit 1
+fi
 
 cat "${MOUNT_DIR}/boot/extlinux/extlinux.conf"
 
