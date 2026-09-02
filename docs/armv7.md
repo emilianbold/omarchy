@@ -327,6 +327,30 @@ adds `eglinfo` if a full renderer string is wanted.
 
 Measured on a C201P: `panfrost` bound, `backend: drm`, `GL ver: 3.0`.
 
+### Rounded corners render wrong in Firefox
+
+Seen on the C201P: rounded corners in web content come out broken — visible
+across sites, YouTube included. Rounded corners are WebRender's clip-mask path,
+and Panfrost's Midgard support is where that path is most likely to be at
+fault, so the first question is whether the GL stack is at fault at all.
+Hyprland draws its own rounded window corners; if those look right while
+Firefox's do not, the shaders are the suspect rather than Mesa generally.
+
+Confirm by forcing software WebRender in `about:config`:
+
+```
+gfx.webrender.software = true
+```
+
+If the corners come good after a restart, it is the GPU path, and
+`about:support` will report "WebRender (Software)" under Compositing. That is a
+diagnosis, not a fix worth shipping: it moves all page rendering onto four
+Cortex-A17 cores. Check `pacman -Q mesa` against what Arch Linux ARM currently
+carries first — Midgard support is still being fixed upstream. Should it turn
+out to be permanent, Firefox's `policies.json` can set the preference through
+`default/firefox/policies.json`, which Omarchy already ships and this port does
+not yet install.
+
 ## Omarchy's Hyprland configuration runs unmodified
 
 `hyprctl systeminfo` reports `configProvider: lua` on Arch Linux ARM's stock
