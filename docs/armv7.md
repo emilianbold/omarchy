@@ -221,6 +221,39 @@ unavailable" points at a package to chase instead; and the build stops outright
 on "no space left in the image", because a full disk otherwise files every
 remaining package as missing and leaves `mkinitcpio` no room for an initramfs.
 
+## What is missing compared to x86_64 Omarchy
+
+Four different reasons, and only the first two are permanent:
+
+**Not built for armv7h.** `chromium` (Arch Linux ARM builds it for aarch64
+only), `xdg-terminal-exec`, `yaru-icon-theme`. Firefox stands in for Chromium
+and Adwaita for Yaru; both are recorded as substitutions in
+`test/shell.d/armv7-install-test.sh`.
+
+**Built by Omarchy for x86_64 only.** Everything from `pkgs.omarchy.org`:
+`aether`, `cliamp`, `herdr`, `omacalc`, `omacut`, `omawrite`, `omarchy-nvim`,
+`tensaku`, `tobi-try`, `ttfx`, `hyprland-preview-share-picker`, and `mise-bin`
+— which takes the whole agent CLI set with it, since claude, codex, gh and
+opencode publish x86_64 and aarch64 binaries. These need building from source
+against `armv7h`, which is the main body of work between this proof of concept
+and a real port.
+
+**Left out on purpose for this hardware.** Bluetooth (`bluez*` — `btsdio`
+crashes this board on suspend), printing (`cups*`), Docker and `lazydocker`,
+`plymouth` (this boot chain shows no splash), `snapper`/`limine` tooling (ext4,
+no snapshots), and the builds no dual-core Cortex-A17 should attempt:
+`libreoffice-fresh`, `kdenlive`, `obs-studio`, `obsidian`, `dotnet-runtime`,
+`moonlight-qt`, `gpu-screen-recorder`.
+
+**Simply not listed yet.** The rest is a trimmed list, not a limitation —
+`install/armv7/packages/desktop.packages` is easy to grow, and everything added
+to it so far has installed.
+
+The practical differences on the machine: Firefox rather than Chromium, so web
+app launchers open a window instead of a Chromium app frame; no AI tooling; no
+Bluetooth; and `omarchy update` upgrades packages without touching the
+bootloader, since U-Boot in KERN-A never changes.
+
 ## The per-user phase
 
 `omarchy-provision-user` routes ARMv7 to `install/armv7/user.sh` the same way

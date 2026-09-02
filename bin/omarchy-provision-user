@@ -117,7 +117,18 @@ else
 fi
 
 omarchy-refresh-applications
-env -u BROWSER xdg-settings set default-web-browser chromium.desktop
+
+# Chromium is the default where it exists. It does not exist everywhere:
+# Arch Linux ARM builds it for aarch64 and not armv7h, and setting a default to
+# a browser that is not installed fails this phase outright and leaves the
+# machine with no default browser at all.
+for browser in chromium firefox; do
+  if [[ -f /usr/share/applications/$browser.desktop ]]; then
+    env -u BROWSER xdg-settings set default-web-browser "$browser.desktop"
+    break
+  fi
+done
+
 xdg-mime default HEY.desktop x-scheme-handler/mailto
 
 if (( first_install )); then

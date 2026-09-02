@@ -5,9 +5,20 @@
 
 browser=$(xdg-settings get default-web-browser)
 
+browser_exec() {
+  sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/"$1" 2>/dev/null | head -1
+}
+
 case $browser in
 google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+firefox* | zen* | librewolf*)
+  # Firefox has no --app, and falling through to Chromium below launches
+  # nothing at all where Chromium is not installed -- which is every armv7h
+  # machine, since Arch Linux ARM builds Chromium for aarch64 only. A dedicated
+  # window is the closest thing Firefox offers.
+  exec setsid uwsm-app -- $(browser_exec "$browser") --new-window "$1" "${@:2}"
+  ;;
 *) browser="chromium.desktop" ;;
 esac
 
-exec setsid uwsm-app -- $(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1) --app="$1" "${@:2}"
+exec setsid uwsm-app -- $(browser_exec "$browser") --app="$1" "${@:2}"

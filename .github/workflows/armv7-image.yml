@@ -116,6 +116,46 @@ jobs:
           # one around.
           retention-days: 3
 
+      # A timestamped tag per build, rather than one mutable "latest": every
+      # snapshot keeps its own permanent link, so an image someone is testing
+      # cannot be replaced under them by the next push.
+      - name: Compute snapshot tag
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        id: snapshot
+        run: echo "tag=armv7-snapshot-$(date -u +%Y%m%dT%H%M%SZ)-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish a snapshot release
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.snapshot.outputs.tag }}
+          name: ARMv7 snapshot ${{ steps.snapshot.outputs.tag }}
+          prerelease: true
+          files: |
+            omarchy-armv7-veyron.img.xz
+            omarchy-armv7-veyron.img.xz.sha256
+            omarchy-armv7-veyron-packages.report
+          body: |
+            Automated ARMv7 snapshot from ${{ github.sha }} (run #${{ github.run_number }}).
+            A proof of concept, not a stable release — see `docs/armv7.md`.
+
+            ```
+            sha256sum -c omarchy-armv7-veyron.img.xz.sha256
+            xz -d omarchy-armv7-veyron.img.xz
+            sudo dd if=omarchy-armv7-veyron.img of=/dev/sdX bs=4M status=progress conv=fsync
+            sudo sgdisk -e /dev/sdX
+            ```
+
+            The image is 12 GB, so the card must be 16 GB or larger. The
+            Chromebook needs developer mode with `dev_boot_usb=1` and
+            `dev_boot_signed_only=0`; press **Ctrl+U** at the developer warning
+            screen. Default login `omarchy` / `omarchy` — change it, and the
+            root password, on first boot.
+
+            `omarchy-armv7-veyron-packages.report` lists what Arch Linux ARM
+            could not supply for this build. The signed U-Boot in KERN-A comes
+            from the [c201p](https://github.com/emilianbold/c201p) project.
+
       - name: Publish a release (armv7 tags only)
         if: startsWith(github.ref, 'refs/tags/armv7-')
         uses: softprops/action-gh-release@v2

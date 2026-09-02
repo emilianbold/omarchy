@@ -27,9 +27,31 @@ xdg-desktop-portal-hyprland
 xdg-terminal-exec
 sddm
 
+# Firefox stands in for Chromium, which Arch Linux ARM builds for aarch64 but
+# not armv7h. Omarchy's browser plumbing handles a Firefox default; its web app
+# launchers open a window instead of a Chromium --app frame.
+firefox
+
 foot
 nautilus
 imv
+
+# Tools Omarchy's own commands shell out to: gum for the menu prompts,
+# imagemagick for theme and background handling, pamixer for the audio
+# controls, qrencode for the QR capture, yt-dlp for the video handoff.
+gum
+imagemagick
+pamixer
+qrencode
+yt-dlp
+inotify-tools
+socat
+fontconfig
+lazygit
+
+# Adwaita in place of yaru-icon-theme, which armv7h does not carry: without an
+# icon theme, GTK applications draw missing-image placeholders.
+adwaita-icon-theme
 mpv
 mpv-mpris
 

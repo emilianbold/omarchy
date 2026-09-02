@@ -81,9 +81,12 @@ armv7_only=$(comm -23 \
 # system the ISO pacstraps (polkit, sudo, xdg-user-dirs, xdg-utils), a
 # dependency worth naming outright because this machine has no ethernet if it
 # goes missing (wpa_supplicant), quickshell's QML runtime that arrives as a
-# dependency there (qt6-declarative), and Arch's full nerd font in place of
-# Omarchy's own ttf-jetbrains-mono-nerd-basic.
-expected_armv7_only="polkit
+# dependency there (qt6-declarative), Arch's full nerd font in place of
+# Omarchy's own ttf-jetbrains-mono-nerd-basic, and the two armv7h has no
+# equivalent of: firefox for chromium, adwaita-icon-theme for yaru-icon-theme.
+expected_armv7_only="adwaita-icon-theme
+firefox
+polkit
 qt6-declarative
 sudo
 ttf-jetbrains-mono-nerd
