@@ -254,6 +254,45 @@ app launchers open a window instead of a Chromium app frame; no AI tooling; no
 Bluetooth; and `omarchy update` upgrades packages without touching the
 bootloader, since U-Boot in KERN-A never changes.
 
+## When it does not reach a desktop
+
+Boot stopping at "Reached target Graphical Interface" means systemd is fine and
+the display manager is not: the session either never started or died. The power
+button shutting the machine down cleanly confirms systemd is still answering.
+
+On the machine, a virtual terminal usually still works — **Ctrl+Alt+F2**, log
+in, then:
+
+```bash
+systemctl status sddm --no-pager
+journalctl -b -u sddm --no-pager | tail -50
+journalctl -b -p err --no-pager | tail -50
+cat /boot/BUILD_STAMP        # which build, and which kernel/Mesa/compositor
+```
+
+If no terminal responds, take the card to another machine. The image keeps a
+persistent journal (`/var/log/journal`), so the failed boot is readable there:
+
+```bash
+journalctl -D /mnt/var/log/journal -b -1 -p err
+```
+
+To boot without a display manager, edit `boot/extlinux/extlinux.conf` on the
+card and append `systemd.unit=multi-user.target` to the `APPEND` line. U-Boot on
+this board shows no menu, so the config's default entry is the only choice it
+offers — a rescue entry has to be made the default rather than picked at boot.
+
+`rockchip-pm-domain … sync_state() pending due to ff9c0000.video-codec` is not
+a fault. The power-domain controller defers `sync_state()` until every consumer
+has probed, and the video codec has no driver here; it appears on healthy boots
+too.
+
+Two things worth ruling out before suspecting the port: every build syncs
+against live Arch Linux ARM repositories, so a kernel or Mesa update alone can
+change behaviour between two images built from the same commit — compare their
+`/boot/BUILD_STAMP` files. And a session that fails only on battery is a
+power/clock problem in the kernel rather than anything Omarchy installed.
+
 ## Checking graphics acceleration
 
 Panfrost drives the Mali T764 out of the mainline kernel, with nothing to

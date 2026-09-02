@@ -14,5 +14,12 @@ install -Dm644 "$OMARCHY_PATH/default/systemd/zram-generator.conf.d/90-omarchy.c
 
 install -Dm644 "$OMARCHY_PATH/etc/sysctl.d/99-omarchy-sysctl.conf" \
   /etc/sysctl.d/99-omarchy-sysctl.conf
+
+# Keep the journal across reboots. Without /var/log/journal, journald stores
+# logs in /run and loses them at power-off -- and a boot that never reaches a
+# usable screen is exactly the one worth reading afterwards, by taking the card
+# to another machine. The only console this hardware has is the display it may
+# have failed to light.
+install -d -m 2755 -g systemd-journal /var/log/journal
 install -Dm644 "$OMARCHY_PATH/etc/tmpfiles.d/omarchy-zswap.conf" \
   /etc/tmpfiles.d/omarchy-zswap.conf

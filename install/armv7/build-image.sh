@@ -357,11 +357,18 @@ kpart_bytes=$(stat -c%s "$UBOOT_KPART")
   { echo "ERROR: U-Boot kpart (${kpart_bytes} B) does not fit KERN-A" >&2; exit 1; }
 dd if="$UBOOT_KPART" of="$PART_KERN" bs=1M status=none
 
-printf 'built: %s\ncommit: %s\nkernel: %s\n' \
-  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-  "$(git -C "$OMARCHY_SOURCE" rev-parse HEAD 2>/dev/null || echo unknown)" \
-  "$(in_target pacman -Q linux-armv7 2>/dev/null || echo unknown)" \
-  >"${MOUNT_DIR}/boot/BUILD_STAMP"
+# Every build syncs against live Arch Linux ARM repositories, so two images from
+# the same commit can differ in kernel, Mesa or compositor. When one boots and
+# the next does not, this is what says whether the change was ours or upstream's.
+{
+  printf 'built:  %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  printf 'commit: %s\n' "$(git -C "$OMARCHY_SOURCE" rev-parse HEAD 2>/dev/null || echo unknown)"
+  in_target pacman -Q linux-armv7 mesa sddm hyprland quickshell qt6-base 2>/dev/null ||
+    in_target pacman -Q linux-armv7 2>/dev/null ||
+    echo "packages: unknown"
+} >"${MOUNT_DIR}/boot/BUILD_STAMP"
+log "    Build stamp:"
+sed 's/^/      /' "${MOUNT_DIR}/boot/BUILD_STAMP"
 
 echo "nameserver 1.1.1.1" >"${MOUNT_DIR}/etc/resolv.conf"
 # No cache to clear -- it lived on the build host (see Step 3) -- and the sync
