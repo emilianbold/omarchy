@@ -410,23 +410,29 @@ else
   sync
 fi
 
-# Every shared library has to be a real ELF file, and this is the last moment to
-# find out: it runs after the free-space work above, which is what damaged one.
-# Checked on the host, where reading thirty thousand headers costs seconds
-# rather than minutes under emulation.
-log "    Verifying shared libraries"
-corrupt=$(find "${MOUNT_DIR}/usr/lib" -type f -name '*.so*' -print0 |
-  xargs -0 -r -n 64 head -c 4 -v 2>/dev/null |
-  awk '/^==> / { file = substr($0, 5, length($0) - 8); next }
-       $0 !~ /^.ELF/ { print file }' |
-  head -20)
+# Check the image against what pacman recorded, and do it here: after the
+# free-space work above, which is what damaged a file the last time. A lost data
+# block reads back as NULs at the file's recorded size, so only content tells
+# the truth -- and the libllhttp.so this shipped with was 62800 bytes of them,
+# a size check and a header check both being too weak to notice.
+log "    Verifying installed files against their recorded checksums"
+if command -v python3 >/dev/null; then
+  python3 "$SCRIPT_DIR/verify-image-files.py" "$MOUNT_DIR" ||
+    { echo "ERROR: the image does not match what pacman installed; not shipping it" >&2; exit 1; }
+else
+  # Without python3, settle for every shared library at least starting like one.
+  log "    (no python3; checking shared library headers only)"
+  corrupt=$(find "${MOUNT_DIR}/usr/lib" -type f -name '*.so*' -print0 |
+    xargs -0 -r -n 64 head -c 4 -v 2>/dev/null |
+    awk '/^==> / { file = substr($0, 5, length($0) - 8); next }
+         $0 !~ /^.ELF/ { print file }' |
+    head -20)
 
-if [[ -n $corrupt ]]; then
-  echo "ERROR: these shared libraries are not valid ELF files:" >&2
-  sed 's/^/       /' <<<"$corrupt" >&2
-  echo "       The image is corrupt; a machine flashed with it cannot run the" >&2
-  echo "       programs that link them." >&2
-  exit 1
+  if [[ -n $corrupt ]]; then
+    echo "ERROR: these shared libraries are not valid ELF files:" >&2
+    sed 's/^/       /' <<<"$corrupt" >&2
+    exit 1
+  fi
 fi
 
 cat "${MOUNT_DIR}/boot/extlinux/extlinux.conf"
