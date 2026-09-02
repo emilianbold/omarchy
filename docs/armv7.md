@@ -241,7 +241,7 @@ and a real port.
 **Left out on purpose for this hardware.** Bluetooth (`bluez*` — `btsdio`
 crashes this board on suspend), printing (`cups*`), Docker and `lazydocker`,
 `plymouth` (this boot chain shows no splash), `snapper`/`limine` tooling (ext4,
-no snapshots), and the builds no dual-core Cortex-A17 should attempt:
+no snapshots), and the builds no quad-core Cortex-A17 should attempt:
 `libreoffice-fresh`, `kdenlive`, `obs-studio`, `obsidian`, `dotnet-runtime`,
 `moonlight-qt`, `gpu-screen-recorder`.
 
@@ -253,6 +253,26 @@ The practical differences on the machine: Firefox rather than Chromium, so web
 app launchers open a window instead of a Chromium app frame; no AI tooling; no
 Bluetooth; and `omarchy update` upgrades packages without touching the
 bootloader, since U-Boot in KERN-A never changes.
+
+## Checking graphics acceleration
+
+Panfrost drives the Mali T764 out of the mainline kernel, with nothing to
+install — but it is worth confirming rather than assuming, since a session that
+fell back to software rendering looks the same until it has to draw something.
+On the machine:
+
+```bash
+hyprctl systeminfo | grep -iA2 'gpu\|renderer'   # Hyprland's own EGL renderer
+sudo dmesg | grep -i panfrost                     # driver bind and GPU id
+```
+
+In Firefox, `about:support` reports "Compositing: WebRender" when accelerated
+and "WebRender (Software)" when not, and `WEBGL_RENDERER` names the GPU
+Panfrost exposes.
+
+Hardware *video* decode is a separate question and is not set up: the RK3288's
+VPU needs a VA-API driver speaking the V4L2 request API, which `armv7h` has no
+package for. Video plays through the CPU.
 
 ## The per-user phase
 
@@ -316,7 +336,7 @@ machine's smart battery arrives as `sbs-20-000b`.
   the machine boots to a TTY and the session starts by hand with
   `uwsm start hyprland`; `/var/lib/omarchy/armv7-packages.report` says which of
   the two is the case.
-- **Performance.** A dual-core Cortex-A17 with 2-4 GB of RAM and Panfrost is not
+- **Performance.** A quad-core Cortex-A17 with 2 or 4 GB of RAM and Panfrost is not
   what the desktop was tuned for; compositing works, video and the browser are
   modest.
 - **No snapshots, no hibernation, no Secure Boot story.** ext4 root, no swap
