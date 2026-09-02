@@ -24,44 +24,42 @@ install -d -m 2755 -g systemd-journal /var/log/journal
 install -Dm644 "$OMARCHY_PATH/etc/tmpfiles.d/omarchy-zswap.conf" \
   /etc/tmpfiles.d/omarchy-zswap.conf
 
-# The session SDDM offers, and the greeter's own assets.
-install -Dm644 "$OMARCHY_PATH/default/wayland-sessions/omarchy.desktop" \
-  /usr/share/wayland-sessions/omarchy.desktop
-install -Dm644 "$OMARCHY_PATH/default/sddm/hyprland.lua" /usr/share/sddm/hyprland.lua
-install -d /usr/share/sddm/themes/omarchy
-cp -a "$OMARCHY_PATH/default/sddm/omarchy/." /usr/share/sddm/themes/omarchy/
-install -Dm644 "$OMARCHY_PATH/etc/sddm.conf.d/10-theme.conf" /etc/sddm.conf.d/10-theme.conf
-
-# SDDM defaults to X11, and there is no X server in this image: it reports that
-# as "Failed to read display number from pipe" and stops, leaving a machine that
-# reaches graphical.target and shows nothing. Omarchy's own drop-in is what puts
-# it on Wayland.
+# SDDM's session and greeter assets, but only where nothing supplies them
+# already.
 #
-# Its CompositorCommand names start-hyprland, which comes with Omarchy's
-# Hyprland rather than Arch Linux ARM's. Where that is missing, call Hyprland
-# directly with the same greeter config: this hardware reports
-# "configProvider: lua", so the stock build reads Omarchy's Lua configs as they
-# are.
-if command -v start-hyprland >/dev/null; then
-  install -Dm644 "$OMARCHY_PATH/etc/sddm.conf.d/10-wayland.conf" \
-    /etc/sddm.conf.d/10-wayland.conf
-else
-  install -d /etc/sddm.conf.d
-  cat >/etc/sddm.conf.d/10-wayland.conf <<'EOF'
-[General]
-DisplayServer=wayland
+# A working image turned out to have /etc/sddm.conf.d/10-wayland.conf in place
+# without this leaf ever writing it, so something outside this repository ships
+# it -- Hyprland's own packaging, going by start-hyprland and
+# /usr/share/sddm/hyprland.lua both belonging to it. Overwriting a file a
+# package owns would only earn a .pacnew on the next upgrade, so each of these
+# fills a gap rather than asserting a value.
+#
+# What put this leaf here was a wrong reading of "Failed to read display number
+# from pipe": that message is not X11-specific. SDDM's Wayland path reads the
+# display name from a pipe too, and logs the same line when the compositor dies
+# on startup -- which a corrupt library does. The corruption was the fault; this
+# configuration was never missing.
+install_if_absent() {
+  [[ -e $2 ]] || install -Dm644 "$1" "$2"
+}
 
-[Wayland]
-CompositorCommand=Hyprland --config /usr/share/sddm/hyprland.lua
-EOF
+install_if_absent "$OMARCHY_PATH/default/wayland-sessions/omarchy.desktop" \
+  /usr/share/wayland-sessions/omarchy.desktop
+install_if_absent "$OMARCHY_PATH/default/sddm/hyprland.lua" /usr/share/sddm/hyprland.lua
+install_if_absent "$OMARCHY_PATH/etc/sddm.conf.d/10-theme.conf" /etc/sddm.conf.d/10-theme.conf
+install_if_absent "$OMARCHY_PATH/etc/sddm.conf.d/10-wayland.conf" \
+  /etc/sddm.conf.d/10-wayland.conf
+
+if [[ ! -d /usr/share/sddm/themes/omarchy ]]; then
+  install -d /usr/share/sddm/themes/omarchy
+  cp -a "$OMARCHY_PATH/default/sddm/omarchy/." /usr/share/sddm/themes/omarchy/
 fi
 
-# Autologin, which on x86_64 the ISO owns because it knows whether the target is
-# encrypted. Here the answer is fixed: an SD card image with a published
-# password, so the greeter is not an authentication boundary worth defending,
-# and skipping it means a broken greeter cannot lock anyone out of the machine.
-# Delete this file to get the login screen back.
-if [[ -n ${OMARCHY_INSTALL_USER:-} ]]; then
+# Autologin is off by default: the greeter works here, and it was only ever
+# proposed as cover for a failure that turned out to be corruption. Set
+# OMARCHY_ARMV7_AUTOLOGIN=1 to skip the login screen on an image whose password
+# is published anyway.
+if [[ ${OMARCHY_ARMV7_AUTOLOGIN:-0} == "1" && -n ${OMARCHY_INSTALL_USER:-} ]]; then
   install -d /etc/sddm.conf.d
   printf '[Autologin]\nUser=%s\nSession=omarchy.desktop\n' "$OMARCHY_INSTALL_USER" \
     >/etc/sddm.conf.d/20-omarchy-armv7-autologin.conf

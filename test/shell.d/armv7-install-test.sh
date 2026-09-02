@@ -100,15 +100,14 @@ if [[ $armv7_only != "$expected_armv7_only" ]]; then
 fi
 pass "every ARMv7 package matches an Omarchy package name or a recorded substitution"
 
-# SDDM defaults to X11 and there is no X server in this image, so an ARMv7
-# target that never gets told otherwise reaches graphical.target and shows
-# nothing: "Failed to read display number from pipe", then a dead display
-# manager on a machine whose only console is that screen.
-grep -q 'DisplayServer=wayland' "$INSTALL_DIR/settings.sh" ||
-  fail "the ARMv7 settings put SDDM on Wayland"
-grep -q 'wayland-sessions/omarchy.desktop' "$INSTALL_DIR/settings.sh" ||
-  fail "the ARMv7 settings install the Omarchy session file"
-pass "the ARMv7 settings put SDDM on Wayland with a session to start"
+# The SDDM configuration and session file are filled in only where nothing
+# already provides them: Hyprland's packaging ships the Wayland drop-in on this
+# board, and overwriting a package's file earns a .pacnew rather than a fix.
+grep -q 'install_if_absent .*sddm.conf.d/10-wayland.conf' "$INSTALL_DIR/settings.sh" ||
+  fail "the ARMv7 settings leave an existing SDDM drop-in alone"
+grep -q 'install_if_absent .*wayland-sessions/omarchy.desktop' "$INSTALL_DIR/settings.sh" ||
+  fail "the ARMv7 settings leave an existing session file alone"
+pass "the ARMv7 settings fill SDDM gaps without overwriting packaged files"
 
 # Free space is only touched after the page cache is flushed. The other order
 # fills the filesystem while an install's writes are still unallocated, and ext4

@@ -260,6 +260,13 @@ Boot stopping at "Reached target Graphical Interface" means systemd is fine and
 the display manager is not: the session either never started or died. The power
 button shutting the machine down cleanly confirms systemd is still answering.
 
+`Failed to read display number from pipe` in SDDM's log is not the X11-specific
+message it looks like. SDDM's Wayland path reads the display name from a pipe
+too, and logs that line whenever the compositor exits during startup — so it
+says "Hyprland did not come up", not "there is no X server". The one time it
+appeared here, the cause was a corrupt library in the image, and the fix was to
+the build rather than to any configuration.
+
 On the machine, a virtual terminal usually still works — **Ctrl+Alt+F2**, log
 in, then:
 
