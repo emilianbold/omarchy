@@ -390,10 +390,11 @@ in_target systemctl disable sshd.service >/dev/null 2>&1 || true
 # ext4 allocates lazily, so at this point an install's worth of file data can
 # still be sitting in the page cache with no blocks assigned. Filling the
 # filesystem first makes those allocations fail at writeback -- silently, since
-# nothing is watching a `dd` that is expected to end in ENOSPC -- and the file
-# is left empty. That shipped an image whose /usr/lib/libllhttp.so.9.3 was
-# zero bytes: `ls` died with "invalid ELF header" and the display manager never
-# started, while the build reported success from end to end.
+# nothing is watching a `dd` that is expected to end in ENOSPC. What is lost is
+# the data, not the inode: the file keeps the size its package recorded and
+# reads back as NULs. That shipped an image whose /usr/lib/libllhttp.so.9.3 was
+# 62800 bytes of zeros -- `ls` died with "invalid ELF header" and the display
+# manager never started, while the build reported success from end to end.
 sync
 sync -f "$MOUNT_DIR" 2>/dev/null || true
 
@@ -415,6 +416,14 @@ fi
 # block reads back as NULs at the file's recorded size, so only content tells
 # the truth -- and the libllhttp.so this shipped with was 62800 bytes of them,
 # a size check and a header check both being too weak to notice.
+#
+# Drop the caches first, or the check reads back the copy still in memory and
+# passes an image whose blocks on disk are holes. The point is to verify what
+# was written, not what was meant to be.
+sync
+echo 3 >/proc/sys/vm/drop_caches 2>/dev/null ||
+  log "    (could not drop caches; verifying against what may still be cached)"
+
 log "    Verifying installed files against their recorded checksums"
 if command -v python3 >/dev/null; then
   python3 "$SCRIPT_DIR/verify-image-files.py" "$MOUNT_DIR" ||
