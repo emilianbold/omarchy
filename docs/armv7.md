@@ -221,6 +221,25 @@ unavailable" points at a package to chase instead; and the build stops outright
 on "no space left in the image", because a full disk otherwise files every
 remaining package as missing and leaves `mkinitcpio` no room for an initramfs.
 
+## The per-user phase
+
+`omarchy-provision-user` routes ARMv7 to `install/armv7/user.sh` the same way
+the system chain is routed. What it leaves out is `mise-work.sh` and `mise.sh`:
+mise reaches Omarchy as `mise-bin`, which pkgs.omarchy.org builds for x86_64
+only, and the agent CLIs that leaf then installs — claude, codex, gh, opencode —
+publish x86_64 and aarch64 binaries, not armv7h. Left in the chain it fails on
+`mise: command not found` and, because the phase runs under `set -e`, takes
+every leaf after it down too. The x86 hardware leaves are absent for a duller
+reason: each is gated on a DMI match for a laptop this is not.
+
+The image builder runs this phase in the chroot but does not trust it. Graphical
+tools — theme setting, icon caches — sometimes abort under qemu-user on
+emulation rather than on anything wrong with the image, so the builder deletes
+the `finalize-user` marker afterwards. `omarchy-provision-first-run` reruns the
+whole phase at first login whenever that marker is absent, which puts the
+authoritative run on the real hardware and costs one repeat of an idempotent
+step.
+
 ## Board support
 
 `install/armv7/veyron.sh` holds what is specific to RK3288 veyron Chromebooks,

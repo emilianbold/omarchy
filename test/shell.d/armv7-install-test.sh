@@ -22,6 +22,24 @@ grep -q 'armv7/all.sh' "$ROOT/bin/omarchy-apply-system" ||
   fail "omarchy-apply-system sources the ARMv7 chain"
 pass "omarchy-apply-system routes ARMv7 targets to their own chain"
 
+grep -q 'omarchy-hw-armv7' "$ROOT/bin/omarchy-provision-user" ||
+  fail "omarchy-provision-user routes ARMv7 targets to their own user chain"
+grep -q 'armv7/user.sh' "$ROOT/bin/omarchy-provision-user" ||
+  fail "omarchy-provision-user sources the ARMv7 user chain"
+pass "omarchy-provision-user routes ARMv7 targets to their own user chain"
+
+while read -r path; do
+  [[ -f $path ]] || fail "install/armv7/user.sh entry exists: ${path#"$ROOT"/}"
+done < <(sed -n 's|^run_logged "\$OMARCHY_INSTALL/\(.*\)"$|'"$ROOT"'/install/\1|p' "$INSTALL_DIR/user.sh")
+pass "every leaf in the ARMv7 user chain exists"
+
+# mise reaches Omarchy as mise-bin, which is x86_64 only, and the leaves that
+# use it fail on "mise: command not found" -- taking the rest of the user phase
+# with them, since provision-user runs under set -e.
+grep -qE '^run_logged .*mise' "$INSTALL_DIR/user.sh" &&
+  fail "the ARMv7 user chain leaves out the mise leaves"
+pass "the ARMv7 user chain leaves out the mise leaves"
+
 # Board quirks must stay behind board detection: this chain also runs on any
 # other ARMv7 machine Omarchy is pointed at.
 grep -q 'if omarchy-hw-chromebook-veyron; then' "$INSTALL_DIR/veyron.sh" ||

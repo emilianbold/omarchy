@@ -322,10 +322,23 @@ in_target env \
 # save user-dirs.dirs, failed to create directory"). -l builds the target
 # user's login environment, HOME included.
 user_finalized=ok
-if ! in_target runuser -l "$USERNAME" -c 'omarchy-provision-user --first-install'; then
+if ! in_target runuser -l "$USERNAME" -c \
+     'OMARCHY_ARCH=armv7l omarchy-provision-user --first-install'; then
   user_finalized=incomplete
   log "    WARNING: omarchy-provision-user did not finish; the user's home is partly unconfigured"
 fi
+
+# Whatever happened above, let the machine redo it natively on first login.
+#
+# This phase runs graphical tools -- theme setting, icon caches -- through
+# qemu-user, where some of them abort on emulation rather than on anything
+# wrong with the image (std::bad_array_new_length out of a Qt binary, for one).
+# A run that crashed part-way but still marked itself complete would leave the
+# home half-configured with nothing to retry it, and
+# omarchy-provision-first-run reruns the whole phase at first login whenever
+# this marker is absent. Removing it costs one repeat of an idempotent step and
+# buys a home configured by the real hardware.
+in_target rm -f "/home/${USERNAME}/.local/state/omarchy/done/finalize-user"
 
 # ── Step 7: boot payload and checks ───────────────────────────────────────────
 log "[7/7] Writing the signed U-Boot to KERN-A and verifying the boot files"

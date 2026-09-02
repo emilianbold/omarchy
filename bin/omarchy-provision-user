@@ -106,7 +106,15 @@ for dir in Downloads Projects Pictures Videos; do
   grep -qxF "$bookmark" ~/.config/gtk-3.0/bookmarks || echo "$bookmark" >>~/.config/gtk-3.0/bookmarks
 done
 
-source "$OMARCHY_INSTALL/user/all.sh"
+# ARMv7 targets run their own user chain, the way omarchy-apply-system routes
+# their system chain: mise and the agent CLIs it installs have no armv7h build,
+# and failing there would take the rest of the user phase with it.
+# See docs/armv7.md.
+if omarchy-hw-armv7; then
+  source "$OMARCHY_INSTALL/armv7/user.sh"
+else
+  source "$OMARCHY_INSTALL/user/all.sh"
+fi
 
 omarchy-refresh-applications
 env -u BROWSER xdg-settings set default-web-browser chromium.desktop
