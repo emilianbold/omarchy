@@ -301,9 +301,34 @@ fell back to software rendering looks the same until it has to draw something.
 On the machine:
 
 ```bash
-hyprctl systeminfo | grep -iA2 'gpu\|renderer'   # Hyprland's own EGL renderer
-sudo dmesg | grep -i panfrost                     # driver bind and GPU id
+sudo dmesg | grep -i panfrost                       # driver bind and GPU id
+cat /sys/class/drm/card*/device/uevent | grep DRIVER # DRIVER=panfrost
+hyprctl systeminfo | grep -i 'GL ver'               # GLES version in use
 ```
+
+Read the GL version rather than looking for a GPU name. `hyprctl systeminfo`
+builds its GPU section from `lspci`, and an RK3288 has no PCI bus, so that
+section is empty on this board and on every other ARM one — its absence says
+nothing.
+
+`GL ver: 3.0` is the answer you want: OpenGL ES 3.0 is what Panfrost advertises
+on Midgard hardware. Software rendering would report a *higher* number, not a
+lower one — llvmpipe advertises ES 3.2 — so a 3.0 here means the Mali is doing
+the work. `backend: drm` in the same output confirms Hyprland is driving KMS
+directly rather than running nested. `mesa-utils` (not installed by default)
+adds `eglinfo` if a full renderer string is wanted.
+
+Measured on a C201P: `panfrost` bound, `backend: drm`, `GL ver: 3.0`.
+
+## Omarchy's Hyprland configuration runs unmodified
+
+`hyprctl systeminfo` reports `configProvider: lua` on Arch Linux ARM's stock
+Hyprland, which settles a question worth settling: Omarchy configures Hyprland
+through Lua (`config/hypr/*.lua`, `default/hypr/**`), and that is an upstream
+Hyprland feature rather than something Omarchy patches in. The desktop this port
+produces is therefore configured by Omarchy's own files, not a stock Hyprland
+wearing Omarchy's name — and no custom compositor build stands between this
+proof of concept and a real port.
 
 In Firefox, `about:support` reports "Compositing: WebRender" when accelerated
 and "WebRender (Software)" when not, and `WEBGL_RENDERER` names the GPU

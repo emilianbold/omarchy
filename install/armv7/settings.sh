@@ -38,9 +38,10 @@ install -Dm644 "$OMARCHY_PATH/etc/sddm.conf.d/10-theme.conf" /etc/sddm.conf.d/10
 # it on Wayland.
 #
 # Its CompositorCommand names start-hyprland, which comes with Omarchy's
-# Hyprland rather than Arch Linux ARM's. Where that is missing, the greeter runs
-# under a plain Hyprland with its own defaults instead -- a greeter that looks
-# unstyled beats a machine with no way in.
+# Hyprland rather than Arch Linux ARM's. Where that is missing, call Hyprland
+# directly with the same greeter config: this hardware reports
+# "configProvider: lua", so the stock build reads Omarchy's Lua configs as they
+# are.
 if command -v start-hyprland >/dev/null; then
   install -Dm644 "$OMARCHY_PATH/etc/sddm.conf.d/10-wayland.conf" \
     /etc/sddm.conf.d/10-wayland.conf
@@ -51,7 +52,7 @@ else
 DisplayServer=wayland
 
 [Wayland]
-CompositorCommand=Hyprland
+CompositorCommand=Hyprland --config /usr/share/sddm/hyprland.lua
 EOF
 fi
 
