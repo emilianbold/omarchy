@@ -336,20 +336,31 @@ fault, so the first question is whether the GL stack is at fault at all.
 Hyprland draws its own rounded window corners; if those look right while
 Firefox's do not, the shaders are the suspect rather than Mesa generally.
 
-Confirm by forcing software WebRender in `about:config`:
+Confirmed on the hardware: setting `gfx.webrender.software = true` in
+`about:config` and restarting Firefox fixes the corners, which places the fault
+in the GPU path rather than in Firefox's layout. Mesa was 1:26.2.1-1 at the
+time — current, not stale — so this is a live Panfrost Midgard bug rather than
+something a newer Mesa already fixes, and it is worth reporting upstream with a
+screenshot. A C201P is a reproducible target for it.
 
-```
-gfx.webrender.software = true
+The port does not set that preference. It only moves page rasterization onto
+four Cortex-A17 cores, and the GPU path is otherwise doing useful work here —
+which of correct corners or faster pages matters more is the machine owner's
+call, not the image's. To keep it, either set it per profile:
+
+```bash
+echo 'user_pref("gfx.webrender.software", true);' >> ~/.mozilla/firefox/*/user.js
 ```
 
-If the corners come good after a restart, it is the GPU path, and
-`about:support` will report "WebRender (Software)" under Compositing. That is a
-diagnosis, not a fix worth shipping: it moves all page rendering onto four
-Cortex-A17 cores. Check `pacman -Q mesa` against what Arch Linux ARM currently
-carries first — Midgard support is still being fixed upstream. Should it turn
-out to be permanent, Firefox's `policies.json` can set the preference through
-`default/firefox/policies.json`, which Omarchy already ships and this port does
+or set it for every profile through Firefox's `Preferences` policy, for which
+Omarchy already ships `default/firefox/policies.json` — a file this port does
 not yet install.
+
+Worth knowing when comparing against another distribution on the same machine:
+Firefox reaches this path on Wayland, where it composites through DMABUF and
+WebRender by default. The same machine running Firefox ESR on X11 may never
+exercise the broken shaders at all, so "it looked fine on Debian" does not
+mean the GPU was doing the work there.
 
 ## Omarchy's Hyprland configuration runs unmodified
 
